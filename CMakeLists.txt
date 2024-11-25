@@ -32,7 +32,7 @@ find_package(MPI REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED)
 target_link_libraries(${PROJECT_NAME}  mfem MPI::MPI_CXX)
-target_sources(${PROJECT_NAME} PRIVATE src/RadialMesh.cpp)
+target_sources(${PROJECT_NAME} PRIVATE src/RadialPlanetaryModel.cpp)
 
 # Optionally add in the example sub-directory. This programs are built, but do not form 
 # part of the library. 
