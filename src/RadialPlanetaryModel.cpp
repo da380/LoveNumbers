@@ -24,6 +24,12 @@ void RadialPlanetaryModel::BuildMesh() {
   // Initiallise the mesh.
   _mesh = mfem::Mesh(1, numberOfVertices, numberOfElements,
                      numberOfBoundaryElements);
+  _domainAttributes.SetSize(NumberOfLayers());
+
+  // Set the domain attributes for the layers.
+  for (auto i : LayerIndices()) {
+    _domainAttributes[i] = i + 1;
+  }
 
   // Loop over the layers building up the mesh.
   auto vertex1 = 0;
@@ -60,7 +66,6 @@ void RadialPlanetaryModel::BuildMesh() {
       _mesh.AddBdrPoint(vertex2, boundaryAttribute++);
     }
 
-    domainAttribute++;
     vertex1 = vertex2;
   }
 

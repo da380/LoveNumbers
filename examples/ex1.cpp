@@ -35,12 +35,7 @@ int main(int argc, char *argv[]) {
   auto model =
       LoveNumbers::RadialPlanetaryModel(layerRadii, maximumElementSize);
 
-  model.PrintMesh(mesh_file);
-
-  // std::ofstream ofs(mesh_file);
-  // ofs.precision(8);
-  // mesh.Print(ofs);
-  // ofs.close();
+  // model.PrintMesh(mesh_file);
 
   return 0;
 }
