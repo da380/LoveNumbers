@@ -4,11 +4,13 @@
 
 namespace LoveNumbers {
 
-void RadialPlanetaryModel::BuildMesh() {
+void RadialPlanetaryModel::BuildMesh(
+    const std::vector<mfem::real_t> &maximumElementSizes) {
 
   // Determine the number of elements per layer.
   auto elementsPerLayer =
-      std::ranges::views::zip(Layers(), MaximumElementSizes()) |
+      std::ranges::views::zip(Layers(),
+                              std::ranges::views::all(maximumElementSizes)) |
       std::ranges::views::transform([](auto triple) {
         auto [layer, drMax] = triple;
         auto [r1, r2] = layer;
@@ -71,6 +73,60 @@ void RadialPlanetaryModel::BuildMesh() {
 
   // Finalise the mesh construction.
   _mesh.FinalizeMesh();
+}
+
+mfem::Array<Int> RadialPlanetaryModel::SolidMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfLayers());
+  std::ranges::transform(IsSolid(), marker.begin(),
+                         [](auto isSolid) { return isSolid ? 1 : 0; });
+  return marker;
+}
+
+mfem::Array<Int> RadialPlanetaryModel::FluidMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfLayers());
+  std::ranges::transform(IsSolid(), marker.begin(),
+                         [](auto isSolid) { return isSolid ? 0 : 1; });
+  return marker;
+}
+
+mfem::Array<Int> RadialPlanetaryModel::FreeSurfaceMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfBoundaryElements());
+  marker = 0;
+  marker[NumberOfBoundaryElements() - 1] = 1;
+  return marker;
+}
+
+mfem::Array<Int> RadialPlanetaryModel::FluidSolidMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfBoundaryElements());
+  marker = 0;
+  for (auto i = 0; i < NumberOfLayers() - 1; i++) {
+    if (!_isSolid[i] && _isSolid[i + 1]) {
+      marker[i + 1] = 1;
+    }
+  }
+  return marker;
+}
+
+mfem::Array<Int> RadialPlanetaryModel::SolidFluidMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfBoundaryElements());
+  marker = 0;
+  for (auto i = 0; i < NumberOfLayers() - 1; i++) {
+    if (_isSolid[i] && !_isSolid[i + 1]) {
+      marker[i + 1] = 1;
+    }
+  }
+  return marker;
+}
+
+mfem::Array<Int> RadialPlanetaryModel::SolidSolidMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfBoundaryElements());
+  marker = 0;
+  for (auto i = 0; i < NumberOfLayers() - 1; i++) {
+    if (_isSolid[i] && _isSolid[i + 1]) {
+      marker[i + 1] = 1;
+    }
+  }
+  return marker;
 }
 
 } // namespace LoveNumbers

@@ -14,10 +14,10 @@
 
 namespace LoveNumbers {
 
-class RadialPlanetaryModel {
-  using Int = int;
-  using Real = mfem::real_t;
+using Int = int;
+using Real = mfem::real_t;
 
+class RadialPlanetaryModel {
 public:
   RadialPlanetaryModel() = default;
 
@@ -25,38 +25,31 @@ public:
   //  Constructs the model from the layer radii and a vector of maximum element
   //  sizes for the layers. Structural parameters are not set.
   //----------------------------------------------------------------------------//
-  template <std::ranges::range R1, std::ranges::range R2>
-  RadialPlanetaryModel(const R1 &layerRadii, const R2 &maximumElementSizes) {
+
+  RadialPlanetaryModel(const std::vector<Real> &layerRadii,
+                       const std::vector<Real> &maximumElementSizes,
+                       const std::vector<bool> &isSolid)
+      : _layerRadii{layerRadii}, _isSolid{isSolid} {
 
     // Store the layer data.
-    std::ranges::copy(layerRadii, std::back_inserter(_layerRadii));
-    std::ranges::copy(maximumElementSizes,
-                      std::back_inserter(_maximumElementSizes));
-    assert(NumberOfLayers() == MaximumElementSizes().size());
+    assert(NumberOfLayers() == maximumElementSizes.size());
 
     // Build up the mesh.
-    BuildMesh();
-
-    // Allocate space for the FunctionCoefficients.
-    _rho_functions.SetSize(NumberOfLayers());
-
-    // Set the function coefficients.
-    for (auto i : LayerIndices()) {
-      _rho_functions[i] = new mfem::FunctionCoefficient(
-          [](mfem::Vector r) -> Real { return 1; });
-    }
-
-    _rho = mfem::PWCoefficient(DomainAttributes(), _rho_functions);
+    BuildMesh(maximumElementSizes);
   }
 
-  template <std::ranges::range R1>
-  RadialPlanetaryModel(const R1 &layerRadii, Real maximumElementSize)
+  RadialPlanetaryModel(const std::vector<Real> &layerRadii,
+                       Real maximumElementSize)
       : RadialPlanetaryModel(
             layerRadii,
-            std::vector<Real>(layerRadii.size() - 1, maximumElementSize)) {}
+            std::vector<Real>(layerRadii.size() - 1, maximumElementSize),
+            std::vector<bool>(layerRadii.size() - 1, true)) {}
 
   // The number of layers in the model.
-  auto NumberOfLayers() const { return _layerRadii.size() - 1; }
+  Int NumberOfLayers() const { return _layerRadii.size() - 1; }
+
+  // The number of boundary elements.
+  Int NumberOfBoundaryElements() const { return NumberOfLayers() + 1; }
 
   // A range indexing the layers.
   auto LayerIndices() const {
@@ -69,16 +62,30 @@ public:
            std::ranges::views::adjacent<2>;
   }
 
-  // A range over the layers returning the specified maximum
-  // element size.
-  auto &MaximumElementSizes() const { return _maximumElementSizes; }
-
   // A range over the layers that equals true if the layer is solid
   // and false otherwise.
   auto &IsSolid() const { return _isSolid; }
 
   // Return a vector of domain attributes for the layers.
   auto &DomainAttributes() const { return _domainAttributes; }
+
+  // Return a marker array for solid regions.
+  mfem::Array<Int> SolidMarker() const;
+
+  // Return a marker array for fluid regions.
+  mfem::Array<Int> FluidMarker() const;
+
+  // Return a marker for the free surface.
+  mfem::Array<Int> FreeSurfaceMarker() const;
+
+  // Return a marker for fluid-solid boundaries.
+  mfem::Array<Int> FluidSolidMarker() const;
+
+  // Return a marker for solid-fluid boundaries.
+  mfem::Array<Int> SolidFluidMarker() const;
+
+  // Return a marker for solid-solid boundaries.
+  mfem::Array<Int> SolidSolidMarker() const;
 
   // Return a reference to the mesh.
   auto &Mesh() { return _mesh; }
@@ -97,7 +104,6 @@ public:
 private:
   // Layer information.
   std::vector<Real> _layerRadii;
-  std::vector<Real> _maximumElementSizes;
   std::vector<bool> _isSolid;
 
   // MFEM mesh and linked data.
@@ -108,7 +114,7 @@ private:
   mfem::PWCoefficient _rho;
   mfem::Array<mfem::FunctionCoefficient *> _rho_functions;
 
-  void BuildMesh();
+  void BuildMesh(const std::vector<Real> &);
 };
 
 } // namespace LoveNumbers

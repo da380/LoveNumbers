@@ -28,14 +28,17 @@ if (NOT CMAKE_CXX_COMPILER AND MFEM_CXX_COMPILER)
 endif()
 
 # Locate MPI. This needs to be the same as used to compile MFEM. 
+# If in a non-standard location, or if multiple versions are available, 
+# then set DMPI_C_COMPILER and DMPI_CXX_COMPILER to the executables used. 
 find_package(MPI REQUIRED)
 
+
+# Set up the library adding in the targeted files for compilation. 
 add_library(${PROJECT_NAME} SHARED)
 target_link_libraries(${PROJECT_NAME}  mfem MPI::MPI_CXX)
 target_sources(${PROJECT_NAME} PRIVATE src/RadialPlanetaryModel.cpp)
 
-# Optionally add in the example sub-directory. This programs are built, but do not form 
-# part of the library. 
+
 
 option(BUILD_EXAMPLES "Build the example programs" OFF)
 if(BUILD_EXAMPLES)
@@ -58,6 +61,9 @@ target_include_directories(
 # the debug and release version of library can be installed to the
 # same location and will not conflict (overwrite each other)
 set_target_properties(${PROJECT_NAME} PROPERTIES DEBUG_POSTFIX "d")
+
+
+
 
 # specify the target to install (calculator-static library defined above)
 # set the export name <name>-config (does not need to match target name)

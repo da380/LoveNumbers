@@ -35,7 +35,12 @@ int main(int argc, char *argv[]) {
   auto model =
       LoveNumbers::RadialPlanetaryModel(layerRadii, maximumElementSize);
 
-  // model.PrintMesh(mesh_file);
+  model.PrintMesh(mesh_file);
+
+  auto marker = model.SolidSolidMarker();
+
+  for (auto i : marker)
+    std::cout << i << std::endl;
 
   return 0;
 }
