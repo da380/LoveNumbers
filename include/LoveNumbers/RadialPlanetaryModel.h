@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DeckModel.h"
 #include "mfem.hpp"
 #include <algorithm>
 #include <cassert>
@@ -12,20 +13,41 @@
 #include <type_traits>
 #include <vector>
 
+#include "LoveNumbers/DeckModel.h"
+
 namespace LoveNumbers {
 
 using Int = int;
 using Real = mfem::real_t;
 
 class RadialPlanetaryModel {
+private:
+  // Store the linked deck model
+  DeckModel<Real> _deckModel;
+
+  // Layer information.
+  std::vector<Real> _layerRadii;
+  std::vector<bool> _isSolid;
+
+  // MFEM mesh and linked data.
+  mfem::Mesh _mesh;
+  mfem::Array<Int> _domainAttributes;
+
+  // Density data.
+  mfem::PWCoefficient _rho;
+  mfem::Array<mfem::FunctionCoefficient *> _rho_functions;
+
 public:
   RadialPlanetaryModel() = default;
+
+  // Construct the model from a given deck model and a maximum element size.
+  RadialPlanetaryModel(const DeckModel<Real> &deckModel,
+                       Real maximumElementSize);
 
   //----------------------------------------------------------------------------//
   //  Constructs the model from the layer radii and a vector of maximum element
   //  sizes for the layers. Structural parameters are not set.
   //----------------------------------------------------------------------------//
-
   RadialPlanetaryModel(const std::vector<Real> &layerRadii,
                        const std::vector<Real> &maximumElementSizes,
                        const std::vector<bool> &isSolid)
@@ -46,7 +68,7 @@ public:
             std::vector<bool>(layerRadii.size() - 1, true)) {}
 
   // The number of layers in the model.
-  Int NumberOfLayers() const { return _layerRadii.size() - 1; }
+  Int NumberOfLayers() const { return _deckModel.LayerRadii().size(); }
 
   // The number of boundary elements.
   Int NumberOfBoundaryElements() const { return NumberOfLayers() + 1; }
@@ -102,18 +124,6 @@ public:
   }
 
 private:
-  // Layer information.
-  std::vector<Real> _layerRadii;
-  std::vector<bool> _isSolid;
-
-  // MFEM mesh and linked data.
-  mfem::Mesh _mesh;
-  mfem::Array<Int> _domainAttributes;
-
-  // Density data.
-  mfem::PWCoefficient _rho;
-  mfem::Array<mfem::FunctionCoefficient *> _rho_functions;
-
   void BuildMesh(const std::vector<Real> &);
 };
 

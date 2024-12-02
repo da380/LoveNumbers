@@ -30,17 +30,12 @@ int main(int argc, char *argv[]) {
   layerRadii[2] = 1.5;
   layerRadii[3] = 5.5;
 
-  auto maximumElementSize = 0.1;
+  auto deckFile = std::string("../data/prem.200.no");
+  auto maximumElementSize = 10000.0;
 
-  auto model =
-      LoveNumbers::RadialPlanetaryModel(layerRadii, maximumElementSize);
+  auto model = LoveNumbers::RadialPlanetaryModel(deckFile, maximumElementSize);
 
   model.PrintMesh(mesh_file);
-
-  auto marker = model.SolidSolidMarker();
-
-  for (auto i : marker)
-    std::cout << i << std::endl;
 
   return 0;
 }

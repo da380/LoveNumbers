@@ -4,13 +4,14 @@
 
 namespace LoveNumbers {
 
-void RadialPlanetaryModel::BuildMesh(
-    const std::vector<mfem::real_t> &maximumElementSizes) {
+RadialPlanetaryModel::RadialPlanetaryModel(const DeckModel<Real> &deckModel,
+                                           Real maximumElementSize)
+    : _deckModel{deckModel} {
 
   // Determine the number of elements per layer.
   auto elementsPerLayer =
-      std::ranges::views::zip(Layers(),
-                              std::ranges::views::all(maximumElementSizes)) |
+      std::ranges::views::zip(_deckModel.LayerRadii(),
+                              std::ranges::views::repeat(maximumElementSize)) |
       std::ranges::views::transform([](auto triple) {
         auto [layer, drMax] = triple;
         auto [r1, r2] = layer;
@@ -37,7 +38,8 @@ void RadialPlanetaryModel::BuildMesh(
   auto vertex1 = 0;
   auto domainAttribute = 1;
   auto boundaryAttribute = 1;
-  for (auto triple : std::ranges::views::zip(Layers(), elementsPerLayer)) {
+  for (auto triple :
+       std::ranges::views::zip(_deckModel.LayerRadii(), elementsPerLayer)) {
     auto [radii, n] = triple;
     auto [r1, r2] = radii;
 

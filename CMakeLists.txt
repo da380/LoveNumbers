@@ -33,9 +33,26 @@ endif()
 find_package(MPI REQUIRED)
 
 
-# Set up the library adding in the targeted files for compilation. 
+# add in Interpolation library. 
+include(FetchContent)
+FetchContent_Declare(
+  Interpolation
+  GIT_REPOSITORY git@github.com:da380/Interpolation.git
+  GIT_TAG main
+)
+FetchContent_MakeAvailable(Interpolation)
+
+
+
+# Set up the library 
 add_library(${PROJECT_NAME} SHARED)
-target_link_libraries(${PROJECT_NAME}  mfem MPI::MPI_CXX)
+
+# Add in linked libraries (note necessary syntax for header-only libraries).
+target_link_libraries(${PROJECT_NAME} PUBLIC mfem MPI::MPI_CXX $<BUILD_INTERFACE:Interpolation>)
+
+
+
+
 target_sources(${PROJECT_NAME} PRIVATE src/RadialPlanetaryModel.cpp)
 
 
