@@ -16,7 +16,13 @@
 
 int main(int argc, char *argv[]) {
 
-  auto model = LoveNumbers::DeckModel("../data/prem.200.no", 0.05);
+  // auto model = LoveNumbers::DeckModel::FromMaximumElementSize(
+  //     "../data/prem.200.no", 0.1);
 
-  model.PrintMesh("prem.mesh");
+  auto model =
+      LoveNumbers::DeckModel::FromMaximumDegree("../data/prem.200.no", 128);
+
+  model.WriteAsDeckModel("prem.200", 1.e4);
+
+  //  model.PrintMesh("prem.mesh");
 }
