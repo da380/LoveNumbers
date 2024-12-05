@@ -90,38 +90,4 @@ void DeckModel::ReadModelFile(const std::string &fileName) {
   }
 }
 
-void DeckModel::WriteModelToFile(const std::string &fileName) {
-
-  auto modelFile = std::ofstream(fileName);
-
-  // Write the header information.
-  for (auto line : _header) {
-    modelFile << line << "\n";
-  }
-
-  // Write the values
-  for (auto i = 0; i < NumberOfKnots(); i++) {
-
-    auto r = _r[i] * LengthScale();
-    auto rho = _rho[i] * DensityScale();
-    auto A = _A[i] * TractionScale();
-    auto C = _C[i] * TractionScale();
-    auto F = _F[i] * TractionScale();
-    auto L = _L[i] * TractionScale();
-    auto N = _N[i] * TractionScale();
-    auto QKappa = _QKappa[i];
-    auto QMu = _QMu[i];
-
-    auto vpv = std::sqrt(C / rho);
-    auto vsv = std::sqrt(L / rho);
-    auto vph = std::sqrt(A / rho);
-    auto vsh = std::sqrt(N / rho);
-    auto eta = F / (A - 2 * L);
-
-    modelFile << std::format("{:10.3f} {:10.3f} {:10.3f} {:10.3f} {:10.3f} "
-                             "{:10.3f} {:10.3f} {:10.3f} {:10.3f}\n",
-                             r, rho, vpv, vsv, QKappa, QMu, vph, vsh, eta);
-  }
-}
-
 } // namespace LoveNumbers

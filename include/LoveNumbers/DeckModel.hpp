@@ -1,7 +1,8 @@
 #pragma once
 
+#include "Configure.hpp"
+#include "LoveNumbers/Configure.hpp"
 #include "LoveNumbers/RadialModel.hpp"
-#include "LoveNumbers/Types.hpp"
 #include <Interpolation/CubicSpline>
 #include <algorithm>
 #include <cmath>
@@ -55,8 +56,16 @@ private:
 public:
   DeckModel() = delete;
 
-  // Construct the deck model without building the finite element mesh.
-  DeckModel(const std::string &fileName) { ReadModelFile(fileName); }
+  // Construct the deck model from file with given scale parameters.
+  DeckModel(const std::string &fileName, Real lengthScale, Real massScale,
+            Real timeScale)
+      : RadialModel(lengthScale, massScale, timeScale) {
+    ReadModelFile(fileName);
+  }
+
+  // Construct the deck model from file with given scale parameters.
+  DeckModel(const std::string &fileName)
+      : DeckModel(fileName, _LENGTH_SCALE, _MASS_SCALE, _TIME_SCALE) {}
 
   // Returns a deck model with its finite element mesh set up based
   // on a uniform maximum element size.

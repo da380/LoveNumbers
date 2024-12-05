@@ -18,23 +18,38 @@
 #include <type_traits>
 #include <vector>
 
-#include "LoveNumbers/Types.hpp"
+#include "LoveNumbers/Configure.hpp"
 
 namespace LoveNumbers {
 
 class RadialModel {
 private:
-  // Constants for non-dimensionalisation, with
-  // default values set.
-  Real _lengthScale = 6371000;
-  Real _massScale = 5.972e24;
-  Real _timeScale = 3600;
+  // Constants for non-dimensionalisation.
+  Real _lengthScale;
+  Real _massScale;
+  Real _timeScale;
 
   // MFEM mesh.
   mfem::Mesh _mesh;
 
   // Contains mesh domain attribute for each layer.
   mfem::Array<Int> _layerAttributes;
+
+  // PWCoefficients for material parameters.
+  mfem::PWCoefficient _rhoCoefficient;
+  mfem::PWCoefficient _ACoefficient;
+  mfem::PWCoefficient _CCoefficient;
+  mfem::PWCoefficient _FCoefficient;
+  mfem::PWCoefficient _LCoefficient;
+  mfem::PWCoefficient _NCoefficient;
+
+  // Function coefficients for each layer
+  std::vector<mfem::FunctionCoefficient> _rhoFunctionCoefficients;
+  std::vector<mfem::FunctionCoefficient> _AFunctionCoefficients;
+  std::vector<mfem::FunctionCoefficient> _CFunctionCoefficients;
+  std::vector<mfem::FunctionCoefficient> _FFunctionCoefficients;
+  std::vector<mfem::FunctionCoefficient> _LFunctionCoefficients;
+  std::vector<mfem::FunctionCoefficient> _NFunctionCoefficients;
 
   // Finite element collection.
   std::unique_ptr<mfem::FiniteElementCollection> _FECollection;
@@ -43,7 +58,7 @@ private:
   std::unique_ptr<mfem::FiniteElementSpace> _FESpace;
 
 public:
-  RadialModel() = default;
+  RadialModel() = delete;
 
   RadialModel(Real lengthScale, Real massScale, Real timeScale)
       : _lengthScale{lengthScale}, _massScale{massScale},
@@ -93,7 +108,13 @@ public:
   }
 
   // Return a vector of domain attributes for the layers.
-  auto &LayerAttributes() const { return _layerAttributes; }
+  auto LayerAttributes() const {
+    auto attributes = mfem::Array<Int>(NumberOfLayers());
+    for (auto i : LayerIndices()) {
+      attributes[i] = i + 1;
+    }
+    return attributes;
+  }
 
   // Return the surface radius of the planet.
   auto SurfaceRadius() const { return LayerRadii(NumberOfLayers() - 1).second; }

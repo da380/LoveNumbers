@@ -1,5 +1,5 @@
-
 #include "LoveNumbers/RadialModel.hpp"
+#include <cstddef>
 
 namespace LoveNumbers {
 
@@ -133,6 +133,48 @@ void RadialModel::BuildMesh(const std::vector<Real> &maximumElementSizes) {
 
   // Finalise the mesh construction.
   _mesh.FinalizeMesh();
+
+  // Set up the function coefficients and pointers.
+  auto rhoPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
+  auto APointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
+  auto CPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
+  auto FPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
+  auto LPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
+  auto NPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
+  for (auto i : LayerIndices()) {
+    _rhoFunctionCoefficients.push_back(mfem::FunctionCoefficient(
+        [this, i](mfem::Vector x) -> Real { return Rho(i)(x[0]); }));
+    _AFunctionCoefficients.push_back(mfem::FunctionCoefficient(
+        [this, i](mfem::Vector x) -> Real { return A(i)(x[0]); }));
+    _CFunctionCoefficients.push_back(mfem::FunctionCoefficient(
+        [this, i](mfem::Vector x) -> Real { return C(i)(x[0]); }));
+    _FFunctionCoefficients.push_back(mfem::FunctionCoefficient(
+        [this, i](mfem::Vector x) -> Real { return F(i)(x[0]); }));
+    rhoPointers[i] = &_rhoFunctionCoefficients[i];
+    APointers[i] = &_AFunctionCoefficients[i];
+    CPointers[i] = &_CFunctionCoefficients[i];
+    FPointers[i] = &_FFunctionCoefficients[i];
+    if (LayerIsSolid(i)) {
+      _LFunctionCoefficients.push_back(mfem::FunctionCoefficient(
+          [this, i](mfem::Vector x) -> Real { return L(i)(x[0]); }));
+      _NFunctionCoefficients.push_back(mfem::FunctionCoefficient(
+          [this, i](mfem::Vector x) -> Real { return N(i)(x[0]); }));
+      LPointers[i] = &_LFunctionCoefficients[i];
+      NPointers[i] = &_NFunctionCoefficients[i];
+    } else {
+      LPointers[i] = nullptr;
+      NPointers[i] = nullptr;
+    }
+  }
+
+  // Set the piecewise coefficients.
+  auto attributes = LayerAttributes();
+  _rhoCoefficient = mfem::PWCoefficient(attributes, rhoPointers);
+  _ACoefficient = mfem::PWCoefficient(attributes, APointers);
+  _CCoefficient = mfem::PWCoefficient(attributes, CPointers);
+  _FCoefficient = mfem::PWCoefficient(attributes, FPointers);
+  _LCoefficient = mfem::PWCoefficient(attributes, LPointers);
+  _NCoefficient = mfem::PWCoefficient(attributes, NPointers);
 }
 
 void RadialModel::WriteAsDeckModel(const std::string &fileName,
