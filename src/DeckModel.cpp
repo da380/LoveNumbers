@@ -1,7 +1,64 @@
 #include "LoveNumbers/DeckModel.hpp"
-#include <memory>
 
 namespace LoveNumbers {
+
+DeckModel DeckModel::FromMaximumElementSize(const std::string &fileName,
+                                            Real maximumElementSize) {
+  auto model = DeckModel(fileName);
+  model.BuildMesh(maximumElementSize);
+  return model;
+}
+
+DeckModel DeckModel::FromMaximumDegree(const std::string &fileName,
+                                       Int maximumDegree) {
+  auto model = DeckModel(fileName);
+  auto maximumElementSize =
+      model.JeanLength(maximumDegree) / static_cast<Real>(5);
+  model.BuildMesh(maximumElementSize);
+  return model;
+}
+
+Int DeckModel::NumberOfLayers() const { return _boundaryIndices.size(); }
+
+std::pair<Real, Real> DeckModel::LayerRadii(Int i) const {
+  return _boundaryRadii[i];
+}
+
+bool DeckModel::LayerIsSolid(Int i) const { return _layerSolid[i]; }
+
+Int DeckModel::NumberOfKnots() const { return _r.size(); }
+
+std::function<Real(Real)> DeckModel::Rho(Int i) const {
+  return std::function<Real(Real)>(*_rhoSplines[i]);
+};
+
+std::function<Real(Real)> DeckModel::A(Int i) const {
+  return std::function<Real(Real)>(*_ASplines[i]);
+};
+
+std::function<Real(Real)> DeckModel::C(Int i) const {
+  return std::function<Real(Real)>(*_CSplines[i]);
+};
+
+std::function<Real(Real)> DeckModel::F(Int i) const {
+  return std::function<Real(Real)>(*_FSplines[i]);
+};
+
+std::function<Real(Real)> DeckModel::L(Int i) const {
+  return std::function<Real(Real)>(*_LSplines[i]);
+};
+
+std::function<Real(Real)> DeckModel::N(Int i) const {
+  return std::function<Real(Real)>(*_NSplines[i]);
+};
+
+std::function<Real(Real)> DeckModel::QKappa(Int i) const {
+  return std::function<Real(Real)>(*_QKappaSplines[i]);
+};
+
+std::function<Real(Real)> DeckModel::QMu(Int i) const {
+  return std::function<Real(Real)>(*_QMuSplines[i]);
+};
 
 void DeckModel::ReadModelFile(const std::string &fileName) {
   // Check the file exists.

@@ -70,77 +70,46 @@ public:
   // Returns a deck model with its finite element mesh set up based
   // on a uniform maximum element size.
   static DeckModel FromMaximumElementSize(const std::string &fileName,
-                                          Real maximumElementSize) {
-    auto model = DeckModel(fileName);
-    model.BuildMesh(maximumElementSize);
-    return model;
-  }
+                                          Real maximumElementSize);
 
   // Returns a deck model with its finite element mesh set up with a
   // a uniform maximum element size based on the Jeans length for  the
   // given maximum degree. A default scale factor of 5 is used, but this
   // can optionally be set directly.
   static DeckModel FromMaximumDegree(const std::string &fileName,
-                                     Int maximumDegree, Int scaleFactor = 5) {
-    auto model = DeckModel(fileName);
-    auto maximumElementSize =
-        model.JeanLength(maximumDegree) / static_cast<Real>(scaleFactor);
-    model.BuildMesh(maximumElementSize);
-    return model;
-  }
+                                     Int maximumDegree);
 
   // Return the number of layers. Override of pure virtual function in base
   // class.
-  Int NumberOfLayers() const override { return _boundaryIndices.size(); }
+  Int NumberOfLayers() const override;
 
   // Return the bounding radii of the ith layer. Override of pure
   // virtual function in base class.
-  std::pair<Real, Real> LayerRadii(Int i) const override {
-    return _boundaryRadii[i];
-  }
+  std::pair<Real, Real> LayerRadii(Int i) const override;
 
   // Return true if ith layer is solid. Override of pure virtual function in
   // base class.
-  bool LayerIsSolid(Int i) const override { return _layerSolid[i]; }
+  bool LayerIsSolid(Int i) const override;
 
   // Return the number of knots in the model.
-  Int NumberOfKnots() const { return _r.size(); }
+  Int NumberOfKnots() const;
 
   // Return material parameter functions in each layer.
-  std::function<Real(Real)> Rho(Int i) const override {
-    return std::function<Real(Real)>(*_rhoSplines[i]);
-  };
+  std::function<Real(Real)> Rho(Int i) const override;
 
-  std::function<Real(Real)> A(Int i) const override {
-    return std::function<Real(Real)>(*_ASplines[i]);
-  };
+  std::function<Real(Real)> A(Int i) const override;
 
-  std::function<Real(Real)> C(Int i) const override {
-    return std::function<Real(Real)>(*_CSplines[i]);
-  };
+  std::function<Real(Real)> C(Int i) const override;
 
-  std::function<Real(Real)> F(Int i) const override {
-    return std::function<Real(Real)>(*_FSplines[i]);
-  };
+  std::function<Real(Real)> F(Int i) const override;
 
-  std::function<Real(Real)> L(Int i) const override {
-    return std::function<Real(Real)>(*_LSplines[i]);
-  };
+  std::function<Real(Real)> L(Int i) const override;
 
-  std::function<Real(Real)> N(Int i) const override {
-    return std::function<Real(Real)>(*_NSplines[i]);
-  };
+  std::function<Real(Real)> N(Int i) const override;
 
-  std::function<Real(Real)> QKappa(Int i) const override {
-    return std::function<Real(Real)>(*_QKappaSplines[i]);
-  };
+  std::function<Real(Real)> QKappa(Int i) const override;
 
-  std::function<Real(Real)> QMu(Int i) const override {
-    return std::function<Real(Real)>(*_QMuSplines[i]);
-  };
-
-  // Write the model to a new file.
-  void WriteModelToFile(const std::string &fileName);
+  std::function<Real(Real)> QMu(Int i) const override;
 
 private:
   // Read and process the model file. This method does not
