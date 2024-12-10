@@ -4,6 +4,7 @@
 #include "LoveNumbers/Configure.hpp"
 #include "LoveNumbers/RadialModel.hpp"
 #include <Interpolation/CubicSpline>
+
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -37,47 +38,51 @@ private:
   std::vector<Real> _QMu;    // Shear quality factor
 
   // Layering information.
-  std::vector<std::pair<Int, Int>> _boundaryIndices;
-  std::vector<std::pair<Real, Real>> _boundaryRadii;
+  std::vector<Int> _boundaryIndex;
+  std::vector<Real> _boundaryRadius;
   std::vector<bool> _layerSolid;
 
   // Cubic spline interpolating functions within each layer.
   using Spline = Interpolation::CubicSpline<std::vector<Real>::iterator,
                                             std::vector<Real>::iterator>;
-  std::vector<std::unique_ptr<Spline>> _rhoSplines;
-  std::vector<std::unique_ptr<Spline>> _ASplines;
-  std::vector<std::unique_ptr<Spline>> _CSplines;
-  std::vector<std::unique_ptr<Spline>> _FSplines;
-  std::vector<std::unique_ptr<Spline>> _LSplines;
-  std::vector<std::unique_ptr<Spline>> _NSplines;
-  std::vector<std::unique_ptr<Spline>> _QKappaSplines;
-  std::vector<std::unique_ptr<Spline>> _QMuSplines;
+  std::vector<Spline> _rhoSplines;
+  std::vector<Spline> _ASplines;
+  std::vector<Spline> _CSplines;
+  std::vector<Spline> _FSplines;
+  std::vector<Spline> _LSplines;
+  std::vector<Spline> _NSplines;
+  std::vector<Spline> _QKappaSplines;
+  std::vector<Spline> _QMuSplines;
 
 public:
   DeckModel() = delete;
 
-  // Construct the deck model from file with given scale parameters.
-  DeckModel(const std::string &fileName, Real lengthScale, Real massScale,
-            Real timeScale)
-      : RadialModel(lengthScale, massScale, timeScale) {
+  // Construct the deck model from file.
+  DeckModel(const std::string &fileName) : RadialModel() {
     ReadModelFile(fileName);
   }
 
-  // Construct the deck model from file with given scale parameters.
-  DeckModel(const std::string &fileName)
-      : DeckModel(fileName, _LENGTH_SCALE, _MASS_SCALE, _TIME_SCALE) {}
+  // Construct the deck model from file.
+  DeckModel(const std::string &fileName, const Dimensions &dimensions)
+      : RadialModel(dimensions) {
+    ReadModelFile(fileName);
+  }
 
-  // Returns a deck model with its finite element mesh set up based
-  // on a uniform maximum element size.
-  static DeckModel FromMaximumElementSize(const std::string &fileName,
-                                          Real maximumElementSize);
+  // Return a DeckModel with the finite element mesh set up based
+  // on the polynomial order and an estimate of the characteristic
+  // length scale (in non-dimensional form) for the problem.
+  static DeckModel
+  FromFEMOrderAndLengthScale(const std::string &fileName, Int order,
+                             Real characteristicLengthScale,
+                             const Dimensions &dimensions = Dimensions());
 
-  // Returns a deck model with its finite element mesh set up with a
-  // a uniform maximum element size based on the Jeans length for  the
-  // given maximum degree. A default scale factor of 5 is used, but this
-  // can optionally be set directly.
-  static DeckModel FromMaximumDegree(const std::string &fileName,
-                                     Int maximumDegree);
+  // Return a DeckModel with the finite element mesh set up based
+  // on the polynomial order and an estimate of the characteristic
+  // length scale based on the maximum degree.
+  static DeckModel
+  FromFEMOrderAndMaximumDegree(const std::string &fileName, Int order,
+                               Int maximumDegree,
+                               const Dimensions &dimensions = Dimensions());
 
   // Return the number of layers. Override of pure virtual function in base
   // class.
@@ -94,22 +99,15 @@ public:
   // Return the number of knots in the model.
   Int NumberOfKnots() const;
 
-  // Return material parameter functions in each layer.
-  std::function<Real(Real)> Rho(Int i) const override;
-
-  std::function<Real(Real)> A(Int i) const override;
-
-  std::function<Real(Real)> C(Int i) const override;
-
-  std::function<Real(Real)> F(Int i) const override;
-
-  std::function<Real(Real)> L(Int i) const override;
-
-  std::function<Real(Real)> N(Int i) const override;
-
-  std::function<Real(Real)> QKappa(Int i) const override;
-
-  std::function<Real(Real)> QMu(Int i) const override;
+  // Functions to return material parameters functions.
+  std::function<Real(Real, Int)> Rho() const override;
+  std::function<Real(Real, Int)> A() const override;
+  std::function<Real(Real, Int)> C() const override;
+  std::function<Real(Real, Int)> F() const override;
+  std::function<Real(Real, Int)> L() const override;
+  std::function<Real(Real, Int)> N() const override;
+  std::function<Real(Real, Int)> QKappa() const override;
+  std::function<Real(Real, Int)> QMu() const override;
 
 private:
   // Read and process the model file. This method does not

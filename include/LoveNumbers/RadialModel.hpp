@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Dimensions.hpp"
+#include "RadialCoefficient.hpp"
 #include "mfem.hpp"
 #include <algorithm>
 #include <array>
@@ -19,76 +21,32 @@
 #include <vector>
 
 #include "LoveNumbers/Configure.hpp"
+#include "LoveNumbers/Dimensions.hpp"
 
 namespace LoveNumbers {
 
-class RadialModel {
+class RadialModel : public Dimensions {
 private:
-  // Constants for non-dimensionalisation.
-  Real _lengthScale;
-  Real _massScale;
-  Real _timeScale;
-
   // MFEM mesh.
   mfem::Mesh _mesh;
 
   // Contains mesh domain attribute for each layer.
   mfem::Array<Int> _layerAttributes;
 
-  // PWCoefficients for material parameters.
-  mfem::PWCoefficient _rhoCoefficient;
-  mfem::PWCoefficient _ACoefficient;
-  mfem::PWCoefficient _CCoefficient;
-  mfem::PWCoefficient _FCoefficient;
-  mfem::PWCoefficient _LCoefficient;
-  mfem::PWCoefficient _NCoefficient;
-
-  // Function coefficients for each layer
-  std::vector<mfem::FunctionCoefficient> _rhoFunctionCoefficients;
-  std::vector<mfem::FunctionCoefficient> _AFunctionCoefficients;
-  std::vector<mfem::FunctionCoefficient> _CFunctionCoefficients;
-  std::vector<mfem::FunctionCoefficient> _FFunctionCoefficients;
-  std::vector<mfem::FunctionCoefficient> _LFunctionCoefficients;
-  std::vector<mfem::FunctionCoefficient> _NFunctionCoefficients;
-
   // Finite element data.
-  std::unique_ptr<mfem::H1_FECollection> _FECollection;
+  std::unique_ptr<mfem::L2_FECollection> _L2;
+  std::unique_ptr<mfem::H1_FECollection> _H1;
 
   // Finite element space.
-  std::unique_ptr<mfem::FiniteElementSpace> _FESpace;
+  std::unique_ptr<mfem::FiniteElementSpace> _L2Space;
+  std::unique_ptr<mfem::FiniteElementSpace> _H1Space;
 
 public:
-  RadialModel() = delete;
+  // Construct with default dimension scheme.
+  RadialModel() = default;
 
-  RadialModel(Real lengthScale, Real massScale, Real timeScale)
-      : _lengthScale{lengthScale}, _massScale{massScale},
-        _timeScale{timeScale} {}
-
-  // Return the length-scale
-  auto LengthScale() const { return _lengthScale; }
-
-  // Return the mass-scale.
-  auto MassScale() const { return _massScale; }
-
-  // Return the time-scale.
-  auto TimeScale() const { return _timeScale; }
-
-  // Return the density scale.
-  auto DensityScale() const { return MassScale() / std::pow(LengthScale(), 3); }
-
-  // Return the velocity scale.
-  auto VelocityScale() const { return LengthScale() / TimeScale(); }
-
-  // Return the acceleration scale.
-  auto AccelerationScale() const { return VelocityScale() / TimeScale(); }
-
-  // Return the force scale.
-  auto ForceScale() const { return MassScale() * AccelerationScale(); }
-
-  // Return the traction scale.
-  auto TractionScale() const {
-    return ForceScale() / std::pow(LengthScale(), 2);
-  }
+  // Construct with explicit dimensions scheme.
+  RadialModel(const Dimensions &dimensions) : Dimensions(dimensions) {}
 
   // Return the number of layers.
   virtual Int NumberOfLayers() const = 0;
@@ -112,59 +70,6 @@ public:
 
   // Return the Jean length for a given degree (in non-dimensional form).
   Real JeanLength(Int degree) const;
-
-  // Return the density in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> Rho(Int i) const = 0;
-
-  // Return the modulus A in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> A(Int i) const = 0;
-
-  // Return the modulus C in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> C(Int i) const = 0;
-
-  // Return the modulus F in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> F(Int i) const = 0;
-
-  // Return the modulus L in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> L(Int i) const = 0;
-
-  // Return the modulus N in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> N(Int i) const = 0;
-
-  // Return the bulk quality factor in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> QKappa(Int i) const = 0;
-
-  // Return the shear quality factor in the ith layer. Must be defined in the
-  // derived class.
-  virtual std::function<Real(Real)> QMu(Int i) const = 0;
-
-  // Return vertical P-velocity in the ith layer.
-  std::function<Real(Real)> VPV(Int i) const;
-
-  // Return horizontal P-velocity in the ith layer.
-  std::function<Real(Real)> VPH(Int i) const;
-
-  // Return vertical S-velocity in the ith layer.
-  std::function<Real(Real)> VSV(Int i) const;
-
-  // Return horizontal S-velocity in the ith layer.
-  std::function<Real(Real)> VSH(Int i) const;
-
-  // Return transversely isotropic eta parameter in the ith layer.
-  std::function<Real(Real)> Eta(Int i) const;
-
-  // Return the effective bulk modulus in the ith layer.
-  std::function<Real(Real)> Kappa(Int i) const;
-
-  // Return the effective shear modulus in the ith layer.
-  std::function<Real(Real)> Mu(Int i) const;
 
   // Return a vector of domain attributes for the layers.
   mfem::Array<Int> LayerAttributes() const;
@@ -201,22 +106,20 @@ public:
   // non-dimensionalised form).
   void BuildMesh(const std::vector<Real> &maximumElementSizes);
 
+  mfem::Mesh &Mesh() { return _mesh; }
+
   // Build the mesh given a maximum element size (in non-dimensionalised form).
   void BuildMesh(Real maximumElementSize);
 
   // Set up the finite element space.
-  void SetFiniteElementSpace(Int order);
+  void SetFiniteElementSpaces(Int order);
 
-  // Return a const reference ot the finite element space.
-  auto &FiniteElementSpace() const { return *_FESpace; }
+  // Return pointers to the finite element spaces.
+  mfem::FiniteElementSpace *L2Space() const { return _L2Space.get(); }
+  mfem::FiniteElementSpace *H1Space() const { return _H1Space.get(); }
 
   // Print the radial mesh to the given file.
-  void PrintMesh(const std::string &mesh_file) {
-    std::ofstream ofs(mesh_file);
-    ofs.precision(8);
-    _mesh.Print(ofs);
-    ofs.close();
-  }
+  void PrintMesh(const std::string &mesh_file);
 
   // Write the model out in deck format.
   void WriteAsDeckModel(const std::string &fileName,
@@ -225,6 +128,37 @@ public:
 
   // Write the model out in deck format using default header lines.
   void WriteAsDeckModel(const std::string &fileName, Real maximumKnotSpacing);
+
+  // Material parameter functions for override.
+  virtual std::function<Real(Real, Int)> Rho() const = 0;
+  virtual std::function<Real(Real, Int)> A() const = 0;
+  virtual std::function<Real(Real, Int)> C() const = 0;
+  virtual std::function<Real(Real, Int)> F() const = 0;
+  virtual std::function<Real(Real, Int)> L() const = 0;
+  virtual std::function<Real(Real, Int)> N() const = 0;
+  virtual std::function<Real(Real, Int)> QKappa() const = 0;
+  virtual std::function<Real(Real, Int)> QMu() const = 0;
+
+  // Derived material parameter functions.
+  std::function<Real(Real, Int)> VPV() const;
+  std::function<Real(Real, Int)> VSV() const;
+  std::function<Real(Real, Int)> VPH() const;
+  std::function<Real(Real, Int)> VSH() const;
+  std::function<Real(Real, Int)> Eta() const;
+  std::function<Real(Real, Int)> Kappa() const;
+  std::function<Real(Real, Int)> Mu() const;
+
+  // MFEM Coefficients for material parameters.
+  auto RhoCoefficient() const { return RadialCoefficient(Rho()); }
+  auto ACoefficient() const { return RadialCoefficient(A()); }
+  auto CCoefficient() const { return RadialCoefficient(C()); }
+  auto FCoefficient() const { return RadialCoefficient(F()); }
+  auto LCoefficient() const { return RadialCoefficient(L()); }
+  auto NCoefficient() const { return RadialCoefficient(N()); }
+  auto QKappaCoefficient() const { return RadialCoefficient(QKappa()); }
+  auto QMuCoefficient() const { return RadialCoefficient(QMu()); }
+  auto KappaCoefficient() const { return RadialCoefficient(Kappa()); }
+  auto MuCoefficient() const { return RadialCoefficient(QMu()); }
 
 private:
 };

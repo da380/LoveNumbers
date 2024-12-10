@@ -2,63 +2,39 @@
 
 namespace LoveNumbers {
 
-DeckModel DeckModel::FromMaximumElementSize(const std::string &fileName,
-                                            Real maximumElementSize) {
-  auto model = DeckModel(fileName);
+DeckModel DeckModel::FromFEMOrderAndLengthScale(const std::string &fileName,
+                                                Int order,
+                                                Real characteristicLengthScale,
+                                                const Dimensions &dimensions) {
+  auto model = DeckModel(fileName, dimensions);
+  auto maximumElementSize = order * characteristicLengthScale;
   model.BuildMesh(maximumElementSize);
+  model.SetFiniteElementSpaces(order);
   return model;
 }
 
-DeckModel DeckModel::FromMaximumDegree(const std::string &fileName,
-                                       Int maximumDegree) {
-  auto model = DeckModel(fileName);
-  auto maximumElementSize =
+DeckModel
+DeckModel::FromFEMOrderAndMaximumDegree(const std::string &fileName, Int order,
+                                        Int maximumDegree,
+                                        const Dimensions &dimensions) {
+  auto model = DeckModel(fileName, dimensions);
+  auto characteristicLengthScale =
       model.JeanLength(maximumDegree) / static_cast<Real>(5);
+  auto maximumElementSize = order * characteristicLengthScale;
   model.BuildMesh(maximumElementSize);
+  model.SetFiniteElementSpaces(order);
   return model;
 }
 
-Int DeckModel::NumberOfLayers() const { return _boundaryIndices.size(); }
+Int DeckModel::NumberOfLayers() const { return _boundaryRadius.size() - 1; }
 
 std::pair<Real, Real> DeckModel::LayerRadii(Int i) const {
-  return _boundaryRadii[i];
+  return {_boundaryRadius[i], _boundaryRadius[i + 1]};
 }
 
 bool DeckModel::LayerIsSolid(Int i) const { return _layerSolid[i]; }
 
 Int DeckModel::NumberOfKnots() const { return _r.size(); }
-
-std::function<Real(Real)> DeckModel::Rho(Int i) const {
-  return std::function<Real(Real)>(*_rhoSplines[i]);
-};
-
-std::function<Real(Real)> DeckModel::A(Int i) const {
-  return std::function<Real(Real)>(*_ASplines[i]);
-};
-
-std::function<Real(Real)> DeckModel::C(Int i) const {
-  return std::function<Real(Real)>(*_CSplines[i]);
-};
-
-std::function<Real(Real)> DeckModel::F(Int i) const {
-  return std::function<Real(Real)>(*_FSplines[i]);
-};
-
-std::function<Real(Real)> DeckModel::L(Int i) const {
-  return std::function<Real(Real)>(*_LSplines[i]);
-};
-
-std::function<Real(Real)> DeckModel::N(Int i) const {
-  return std::function<Real(Real)>(*_NSplines[i]);
-};
-
-std::function<Real(Real)> DeckModel::QKappa(Int i) const {
-  return std::function<Real(Real)>(*_QKappaSplines[i]);
-};
-
-std::function<Real(Real)> DeckModel::QMu(Int i) const {
-  return std::function<Real(Real)>(*_QMuSplines[i]);
-};
 
 void DeckModel::ReadModelFile(const std::string &fileName) {
   // Check the file exists.
@@ -108,43 +84,70 @@ void DeckModel::ReadModelFile(const std::string &fileName) {
 
   // Work out the layering.
   constexpr auto eps = std::numeric_limits<Real>::epsilon();
-  Int iL = 0;
-  Real rL = 0;
-  for (auto iU = 1; iU < NumberOfKnots(); iU++) {
-    auto r0 = _r[iU - 1];
-    auto r1 = _r[iU];
+  _boundaryRadius.push_back(_r.front());
+  _boundaryIndex.push_back(0);
+  for (auto i = 1; i < NumberOfKnots() - 1; i++) {
+    auto r0 = _r[i - 1];
+    auto r1 = _r[i];
     if (std::abs(r1 - r0) < eps * (r0 + r1)) {
-      _boundaryIndices.push_back({iL, iU});
-      _boundaryRadii.push_back({rL, r0});
-      _layerSolid.push_back(
-          std::all_of(&_L[iL], &_L[iU], [](auto L) { return L > 0; }));
-      iL = iU;
-      rL = r0;
+      _boundaryRadius.push_back(r0);
+      _boundaryIndex.push_back(i);
     }
   }
+  _boundaryRadius.push_back(_r.back());
+  _boundaryIndex.push_back(NumberOfKnots());
 
   // Set up the cubic splines.
   for (auto i = 0; i < NumberOfLayers(); i++) {
-    auto [i0, i1] = _boundaryIndices[i];
+    auto i0 = _boundaryIndex[i];
+    auto i1 = _boundaryIndex[i + 1];
     auto rS = std::next(_r.begin(), i0);
     auto rF = std::next(_r.begin(), i1);
-    _rhoSplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_rho.begin(), i0)));
-    _ASplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_A.begin(), i0)));
-    _CSplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_C.begin(), i0)));
-    _FSplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_F.begin(), i0)));
-    _LSplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_L.begin(), i0)));
-    _NSplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_N.begin(), i0)));
-    _QKappaSplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_QKappa.begin(), i0)));
-    _QMuSplines.push_back(
-        std::make_unique<Spline>(rS, rF, std::next(_QMu.begin(), i0)));
+    _rhoSplines.push_back(Spline(rS, rF, std::next(_rho.begin(), i0)));
+    _ASplines.push_back(Spline(rS, rF, std::next(_A.begin(), i0)));
+    _CSplines.push_back(Spline(rS, rF, std::next(_C.begin(), i0)));
+    _FSplines.push_back(Spline(rS, rF, std::next(_F.begin(), i0)));
+    _LSplines.push_back(Spline(rS, rF, std::next(_L.begin(), i0)));
+    _NSplines.push_back(Spline(rS, rF, std::next(_N.begin(), i0)));
+    _QKappaSplines.push_back(Spline(rS, rF, std::next(_QKappa.begin(), i0)));
+    _QMuSplines.push_back(Spline(rS, rF, std::next(_QMu.begin(), i0)));
   }
+}
+
+std::function<Real(Real, Int)> DeckModel::Rho() const {
+  return
+      [this](Real r, Int attribute) { return _rhoSplines[attribute - 1](r); };
+}
+
+std::function<Real(Real, Int)> DeckModel::A() const {
+  return [this](Real r, Int attribute) { return _ASplines[attribute - 1](r); };
+}
+
+std::function<Real(Real, Int)> DeckModel::C() const {
+  return [this](Real r, Int attribute) { return _CSplines[attribute - 1](r); };
+}
+
+std::function<Real(Real, Int)> DeckModel::F() const {
+  return [this](Real r, Int attribute) { return _FSplines[attribute - 1](r); };
+}
+
+std::function<Real(Real, Int)> DeckModel::L() const {
+  return [this](Real r, Int attribute) { return _LSplines[attribute - 1](r); };
+}
+
+std::function<Real(Real, Int)> DeckModel::N() const {
+  return [this](Real r, Int attribute) { return _NSplines[attribute - 1](r); };
+}
+
+std::function<Real(Real, Int)> DeckModel::QKappa() const {
+  return [this](Real r, Int attribute) {
+    return _QKappaSplines[attribute - 1](r);
+  };
+}
+
+std::function<Real(Real, Int)> DeckModel::QMu() const {
+  return
+      [this](Real r, Int attribute) { return _QMuSplines[attribute - 1](r); };
 }
 
 } // namespace LoveNumbers

@@ -94,42 +94,6 @@ Real RadialModel::SurfaceRadius() const {
   return LayerRadii(NumberOfLayers() - 1).second;
 }
 
-std::function<Real(Real)> RadialModel::VPV(Int i) const {
-  return [this, i](Real r) -> Real { return std::sqrt(C(i)(r) / Rho(i)(r)); };
-}
-
-std::function<Real(Real)> RadialModel::VPH(Int i) const {
-  return [this, i](Real r) -> Real { return std::sqrt(A(i)(r) / Rho(i)(r)); };
-}
-
-std::function<Real(Real)> RadialModel::VSV(Int i) const {
-  return [this, i](Real r) -> Real { return std::sqrt(L(i)(r) / Rho(i)(r)); };
-}
-
-std::function<Real(Real)> RadialModel::VSH(Int i) const {
-  return [this, i](Real r) -> Real { return std::sqrt(N(i)(r) / Rho(i)(r)); };
-}
-
-std::function<Real(Real)> RadialModel::Eta(Int i) const {
-  return
-      [this, i](Real r) -> Real { return F(i)(r) / (A(i)(r) - 2 * L(i)(r)); };
-}
-
-std::function<Real(Real)> RadialModel::Kappa(Int i) const {
-  return [this, i](Real r) -> Real {
-    constexpr auto ninth = static_cast<Real>(1) / static_cast<Real>(9);
-    return ninth * (C(i)(r) + 4 * (A(i)(r) - N(i)(r) + F(i)(r)));
-  };
-}
-
-std::function<Real(Real)> RadialModel::Mu(Int i) const {
-  return [this, i](Real r) -> Real {
-    constexpr auto fifteenth = static_cast<Real>(1) / static_cast<Real>(15);
-    return fifteenth *
-           (C(i)(r) + A(i)(r) + 6 * L(i)(r) + 5 * N(i)(r) - 2 * F(i)(r));
-  };
-}
-
 void RadialModel::BuildMesh(Real maximumElementSize) {
   auto maximumElementSizes =
       std::vector<Real>(NumberOfLayers(), maximumElementSize);
@@ -194,54 +158,13 @@ void RadialModel::BuildMesh(const std::vector<Real> &maximumElementSizes) {
 
   // Finalise the mesh construction.
   _mesh.FinalizeMesh();
-
-  // Set up the function coefficients and pointers.
-  auto rhoPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
-  auto APointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
-  auto CPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
-  auto FPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
-  auto LPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
-  auto NPointers = mfem::Array<mfem::Coefficient *>(NumberOfLayers());
-  for (auto i : LayerIndices()) {
-    _rhoFunctionCoefficients.push_back(mfem::FunctionCoefficient(
-        [this, i](mfem::Vector x) -> Real { return Rho(i)(x[0]); }));
-    _AFunctionCoefficients.push_back(mfem::FunctionCoefficient(
-        [this, i](mfem::Vector x) -> Real { return A(i)(x[0]); }));
-    _CFunctionCoefficients.push_back(mfem::FunctionCoefficient(
-        [this, i](mfem::Vector x) -> Real { return C(i)(x[0]); }));
-    _FFunctionCoefficients.push_back(mfem::FunctionCoefficient(
-        [this, i](mfem::Vector x) -> Real { return F(i)(x[0]); }));
-    rhoPointers[i] = &_rhoFunctionCoefficients[i];
-    APointers[i] = &_AFunctionCoefficients[i];
-    CPointers[i] = &_CFunctionCoefficients[i];
-    FPointers[i] = &_FFunctionCoefficients[i];
-    if (LayerIsSolid(i)) {
-      _LFunctionCoefficients.push_back(mfem::FunctionCoefficient(
-          [this, i](mfem::Vector x) -> Real { return L(i)(x[0]); }));
-      _NFunctionCoefficients.push_back(mfem::FunctionCoefficient(
-          [this, i](mfem::Vector x) -> Real { return N(i)(x[0]); }));
-      LPointers[i] = &_LFunctionCoefficients[i];
-      NPointers[i] = &_NFunctionCoefficients[i];
-    } else {
-      LPointers[i] = nullptr;
-      NPointers[i] = nullptr;
-    }
-  }
-
-  // Set the piecewise coefficients.
-  auto attributes = LayerAttributes();
-  _rhoCoefficient = mfem::PWCoefficient(attributes, rhoPointers);
-  _ACoefficient = mfem::PWCoefficient(attributes, APointers);
-  _CCoefficient = mfem::PWCoefficient(attributes, CPointers);
-  _FCoefficient = mfem::PWCoefficient(attributes, FPointers);
-  _LCoefficient = mfem::PWCoefficient(attributes, LPointers);
-  _NCoefficient = mfem::PWCoefficient(attributes, NPointers);
 }
 
-void RadialModel::SetFiniteElementSpace(Int order) {
-  _FECollection = std::make_unique<mfem::H1_FECollection>(order, 1);
-  _FESpace =
-      std::make_unique<mfem::FiniteElementSpace>(&_mesh, _FECollection.get());
+void RadialModel::SetFiniteElementSpaces(Int order) {
+  _L2 = std::make_unique<mfem::L2_FECollection>(order, 1);
+  _H1 = std::make_unique<mfem::H1_FECollection>(order, 1);
+  _L2Space = std::make_unique<mfem::FiniteElementSpace>(&_mesh, _L2.get());
+  _H1Space = std::make_unique<mfem::FiniteElementSpace>(&_mesh, _H1.get());
 }
 
 void RadialModel::WriteAsDeckModel(const std::string &fileName,
@@ -257,10 +180,10 @@ void RadialModel::WriteAsDeckModel(const std::string &fileName,
   }
 
   // Loop over the layers
+  /*
   for (auto i = 0; i < NumberOfLayers(); i++) {
     auto [r0, r1] = LayerRadii(i);
-    auto n = std::max<Int>(
-        2, std::round((r1 - r0) / (maximumKnotSpacing / LengthScale())));
+    auto n = std::max<Int>(2, std::round((r1 - r0) / maximumKnotSpacing));
     auto dr = (r1 - r0) / (n - 1);
     auto rho = Rho(i);
     auto vpv = VPV(i);
@@ -270,6 +193,7 @@ void RadialModel::WriteAsDeckModel(const std::string &fileName,
     auto vph = VPH(i);
     auto vsh = VSH(i);
     auto eta = Eta(i);
+
     for (auto j = 0; j < n; j++) {
       auto r = r0 + j * dr;
       modelFile << std::format(
@@ -280,6 +204,7 @@ void RadialModel::WriteAsDeckModel(const std::string &fileName,
           vsh(r) * VelocityScale(), eta(r));
     }
   }
+*/
 }
 
 void RadialModel::WriteAsDeckModel(const std::string &fileName,
@@ -287,6 +212,62 @@ void RadialModel::WriteAsDeckModel(const std::string &fileName,
   auto message = std::string("Header line is ignored!");
   auto header = std::array<std::string, 3>{message, message, message};
   WriteAsDeckModel(fileName, header, maximumKnotSpacing);
+}
+
+void RadialModel::PrintMesh(const std::string &mesh_file) {
+  std::ofstream ofs(mesh_file);
+  ofs.precision(8);
+  _mesh.Print(ofs);
+  ofs.close();
+}
+
+std::function<Real(Real, Int)> RadialModel::VPV() const {
+  return [this](Real r, Real attribute) {
+    return std::sqrt(C()(r, attribute) / Rho()(r, attribute));
+  };
+}
+
+std::function<Real(Real, Int)> RadialModel::VSV() const {
+  return [this](Real r, Real attribute) {
+    return std::sqrt(L()(r, attribute) / Rho()(r, attribute));
+  };
+}
+
+std::function<Real(Real, Int)> RadialModel::VPH() const {
+  return [this](Real r, Real attribute) {
+    return std::sqrt(A()(r, attribute) / Rho()(r, attribute));
+  };
+}
+
+std::function<Real(Real, Int)> RadialModel::VSH() const {
+  return [this](Real r, Real attribute) {
+    return std::sqrt(N()(r, attribute) / Rho()(r, attribute));
+  };
+}
+
+std::function<Real(Real, Int)> RadialModel::Eta() const {
+  return [this](Real r, Real attribute) {
+    return F()(r, attribute) / (A()(r, attribute) - 2 * L()(r, attribute));
+  };
+}
+
+std::function<Real(Real, Int)> RadialModel::Kappa() const {
+  return [this](Real r, Real attribute) {
+    constexpr auto ninth = static_cast<Real>(1) / static_cast<Real>(9);
+    return ninth *
+           (C()(r, attribute) +
+            4 * (A()(r, attribute) - N()(r, attribute) + F()(r, attribute)));
+  };
+}
+
+std::function<Real(Real, Int)> RadialModel::Mu() const {
+  return [this](Real r, Real attribute) {
+    constexpr auto fifteenth = static_cast<Real>(1) / static_cast<Real>(15);
+
+    return fifteenth *
+           (C()(r, attribute) + A()(r, attribute) + 6 * L()(r, attribute) +
+            5 * N()(r, attribute) - 2 * F()(r, attribute));
+  };
 }
 
 } // namespace LoveNumbers

@@ -1,0 +1,5 @@
+Header lines are not used!
+Header lines are not used!
+Header lines are not used!
+      0.  5000.00  8000.00  5000.00   1000.0    100.0  8000.00  5000.00  1.00000
+6371000.  5000.00  8000.00  5000.00   1000.0    100.0  8000.00  5000.00  1.00000

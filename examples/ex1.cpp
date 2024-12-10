@@ -1,38 +1,40 @@
 
-#include "mfem.hpp"
 
-#include "mfem.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <fstream>
 #include <iostream>
+#include <numbers>
 #include <ranges>
 #include <string>
 #include <vector>
 
 #include "LoveNumbers/LoveNumbers.hpp"
-// #include "LoveNumbers/LoveNumbers.hpp"
-// #include "LoveNumbers/RadialModel.hpp"
 
 int main(int argc, char *argv[]) {
 
-  // auto model = LoveNumbers::DeckModel::FromMaximumElementSize(
-  //     "../data/prem.200.no", 0.1);
+  auto model = LoveNumbers::DeckModel::FromFEMOrderAndMaximumDegree(
+      "../data/prem.200.no", 4, 64);
 
-  auto model =
-      LoveNumbers::DeckModel::FromMaximumDegree("../data/prem.200.no", 128);
+  auto *L2Space = model.L2Space();
 
-  // auto model = LoveNumbers::HomogeneousModel::FromIsotropicWaveSpeeds(
-  //     6.371e6, 5000, 10000, 8000, 100, 100);
+  auto b = mfem::LinearForm(L2Space);
 
-  model.WriteAsDeckModel("prem.200", 1.e4);
+  auto kernel = LoveNumbers::RadialCoefficient(
+      [](auto r, auto attribute) { return r * r; });
+  b.AddDomainIntegrator(new mfem::DomainLFIntegrator(kernel));
+  b.Assemble();
 
-  model.SetFiniteElementSpace(2);
+  auto rho = mfem::GridFunction(L2Space);
+  auto rhoCoefficient = model.RhoCoefficient();
+  rho.ProjectCoefficient(rhoCoefficient);
 
-  auto &FESpace = model.FiniteElementSpace();
+  auto factor = 4 * std::numbers::pi_v<LoveNumbers::Real> *
+                model.GravitationalConstant() /
+                (std::pow(model.SurfaceRadius(), 2));
 
-  std::cout << FESpace.GetNDofs() << std::endl;
+  auto g = factor * (b(rho));
 
-  //  model.PrintMesh("prem.mesh");
+  std::cout << g * model.AccelerationScale() << std::endl;
 }

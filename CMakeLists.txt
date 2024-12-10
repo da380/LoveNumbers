@@ -55,7 +55,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC mfem MPI::MPI_CXX $<BUILD_INTERFACE
 target_sources(${PROJECT_NAME} PRIVATE src/RadialModel.cpp 
                                        src/DeckModel.cpp 
                                        src/HomogeneousModel.cpp
-                                       src/PWHomogeneousModel.cpp)
+                                       )
 
 
 
