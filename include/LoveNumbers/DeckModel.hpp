@@ -3,6 +3,7 @@
 #include "Configure.hpp"
 #include "LoveNumbers/Configure.hpp"
 #include "LoveNumbers/RadialModel.hpp"
+#include "RadialModel.hpp"
 #include <Interpolation/CubicSpline>
 
 #include <algorithm>
@@ -57,35 +58,15 @@ private:
 public:
   DeckModel() = delete;
 
-  // Construct the deck model from file.
-  DeckModel(const std::string &fileName) : RadialModel() {
+  DeckModel(const Dimensions &dimensions, Int order,
+            Real characteristicLengthScale, const std::string &fileName)
+      : RadialModel(dimensions, order) {
     ReadModelFile(fileName);
+    BuildMesh(characteristicLengthScale);
   }
 
-  // Construct the deck model from file.
-  DeckModel(const std::string &fileName, const Dimensions &dimensions)
-      : RadialModel(dimensions) {
-    ReadModelFile(fileName);
-  }
-
-  // Return a DeckModel with the finite element mesh set up based
-  // on the polynomial order and an estimate of the characteristic
-  // length scale (in non-dimensional form) for the problem.
-  static DeckModel
-  FromFEMOrderAndLengthScale(const std::string &fileName, Int order,
-                             Real characteristicLengthScale,
-                             const Dimensions &dimensions = Dimensions());
-
-  // Return a DeckModel with the finite element mesh set up based
-  // on the polynomial order and an estimate of the characteristic
-  // length scale based on the maximum degree.
-  static DeckModel
-  FromFEMOrderAndMaximumDegree(const std::string &fileName, Int order,
-                               Int maximumDegree,
-                               const Dimensions &dimensions = Dimensions());
-
-  // Return the number of layers. Override of pure virtual function in base
-  // class.
+  // Return the number of layers. Override of pure virtual function in
+  // base class.
   Int NumberOfLayers() const override;
 
   // Return the bounding radii of the ith layer. Override of pure

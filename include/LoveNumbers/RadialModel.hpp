@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Dimensions.hpp"
-#include "RadialCoefficient.hpp"
+#include "RadialModelCoefficient.hpp"
 #include "mfem.hpp"
 #include <algorithm>
 #include <array>
@@ -34,6 +34,7 @@ private:
   mfem::Array<Int> _layerAttributes;
 
   // Finite element data.
+  Int _order;
   std::unique_ptr<mfem::L2_FECollection> _L2;
   std::unique_ptr<mfem::H1_FECollection> _H1;
 
@@ -41,12 +42,18 @@ private:
   std::unique_ptr<mfem::FiniteElementSpace> _L2Space;
   std::unique_ptr<mfem::FiniteElementSpace> _H1Space;
 
-public:
-  // Construct with default dimension scheme.
-  RadialModel() = default;
+  // Computed and stored properties of the model
+  Real _surfaceGravity;
+  Real _momentOfInertiaFactor;
 
-  // Construct with explicit dimensions scheme.
-  RadialModel(const Dimensions &dimensions) : Dimensions(dimensions) {}
+  mfem::GridFunction _gravitationalPotential;
+
+public:
+  // Constructor to be called from derived classes.
+  RadialModel(const Dimensions &dimensions, Int order)
+      : Dimensions(dimensions), _order{order},
+        _L2{std::make_unique<mfem::L2_FECollection>(order, 1)},
+        _H1{std::make_unique<mfem::H1_FECollection>(order, 1)} {}
 
   // Return the number of layers.
   virtual Int NumberOfLayers() const = 0;
@@ -71,6 +78,12 @@ public:
   // Return the Jean length for a given degree (in non-dimensional form).
   Real JeanLength(Int degree) const;
 
+  // Return the surface gravitational acceleration.
+  Real SurfaceGravity() const { return _surfaceGravity; }
+
+  // Return the moment of inertia factor.
+  Real MomentOfInertiaFactor() const { return _momentOfInertiaFactor; }
+
   // Return a vector of domain attributes for the layers.
   mfem::Array<Int> LayerAttributes() const;
 
@@ -81,7 +94,7 @@ public:
   mfem::Array<Int> FluidMarker() const;
 
   // Return a marker for the free surface.
-  mfem::Array<Int> FreeSurfaceMarker() const;
+  mfem::Array<Int> SurfaceMarker() const;
 
   // Return a marker for fluid-solid boundaries.
   mfem::Array<Int> FluidSolidMarker() const;
@@ -102,17 +115,18 @@ public:
   // (which is not a real physical boundary).
   mfem::Array<Int> AllBoundaryMarkerCentreExcluded() const;
 
+  // Return a marker just for the central boundary.
+  mfem::Array<Int> CentreMarker() const;
+
+  // Return a marker just for the central boundary.
+  mfem::Array<Int> CentreAndSurfaceMarker() const;
+
   // Build the mesh given a maximum element sizes for each layer (in
   // non-dimensionalised form).
-  void BuildMesh(const std::vector<Real> &maximumElementSizes);
+  void BuildMesh(Real characteristicLengthScale);
 
+  // Return a reference to the mesh.
   mfem::Mesh &Mesh() { return _mesh; }
-
-  // Build the mesh given a maximum element size (in non-dimensionalised form).
-  void BuildMesh(Real maximumElementSize);
-
-  // Set up the finite element space.
-  void SetFiniteElementSpaces(Int order);
 
   // Return pointers to the finite element spaces.
   mfem::FiniteElementSpace *L2Space() const { return _L2Space.get(); }
@@ -149,18 +163,30 @@ public:
   std::function<Real(Real, Int)> Mu() const;
 
   // MFEM Coefficients for material parameters.
-  auto RhoCoefficient() const { return RadialCoefficient(Rho()); }
-  auto ACoefficient() const { return RadialCoefficient(A()); }
-  auto CCoefficient() const { return RadialCoefficient(C()); }
-  auto FCoefficient() const { return RadialCoefficient(F()); }
-  auto LCoefficient() const { return RadialCoefficient(L()); }
-  auto NCoefficient() const { return RadialCoefficient(N()); }
-  auto QKappaCoefficient() const { return RadialCoefficient(QKappa()); }
-  auto QMuCoefficient() const { return RadialCoefficient(QMu()); }
-  auto KappaCoefficient() const { return RadialCoefficient(Kappa()); }
-  auto MuCoefficient() const { return RadialCoefficient(QMu()); }
+  auto RhoCoefficient() const { return RadialModelCoefficient(Rho()); }
+  auto ACoefficient() const { return RadialModelCoefficient(A()); }
+  auto CCoefficient() const { return RadialModelCoefficient(C()); }
+  auto FCoefficient() const { return RadialModelCoefficient(F()); }
+  auto LCoefficient() const { return RadialModelCoefficient(L()); }
+  auto NCoefficient() const { return RadialModelCoefficient(N()); }
+  auto QKappaCoefficient() const { return RadialModelCoefficient(QKappa()); }
+  auto QMuCoefficient() const { return RadialModelCoefficient(QMu()); }
+  auto KappaCoefficient() const { return RadialModelCoefficient(Kappa()); }
+  auto MuCoefficient() const { return RadialModelCoefficient(QMu()); }
+
+  // MFEM Coefficients for computed properties.
+  auto PhiCoefficient() const {
+    return mfem::GridFunctionCoefficient(&_gravitationalPotential);
+  }
 
 private:
+  // Compute the surface gravitational acceleration and moment of inertia factor
+  // via the radial integrals.
+  void ComputeSurfaceGravityAndMomentOfInertiaFactor();
+
+  // Compute the gravitational potential field through solution of the radial
+  // Poisson equation.
+  void ComputeGravitationalPotential();
 };
 
 } // namespace LoveNumbers

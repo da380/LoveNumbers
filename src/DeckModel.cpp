@@ -2,30 +2,6 @@
 
 namespace LoveNumbers {
 
-DeckModel DeckModel::FromFEMOrderAndLengthScale(const std::string &fileName,
-                                                Int order,
-                                                Real characteristicLengthScale,
-                                                const Dimensions &dimensions) {
-  auto model = DeckModel(fileName, dimensions);
-  auto maximumElementSize = order * characteristicLengthScale;
-  model.BuildMesh(maximumElementSize);
-  model.SetFiniteElementSpaces(order);
-  return model;
-}
-
-DeckModel
-DeckModel::FromFEMOrderAndMaximumDegree(const std::string &fileName, Int order,
-                                        Int maximumDegree,
-                                        const Dimensions &dimensions) {
-  auto model = DeckModel(fileName, dimensions);
-  auto characteristicLengthScale =
-      model.JeanLength(maximumDegree) / static_cast<Real>(5);
-  auto maximumElementSize = order * characteristicLengthScale;
-  model.BuildMesh(maximumElementSize);
-  model.SetFiniteElementSpaces(order);
-  return model;
-}
-
 Int DeckModel::NumberOfLayers() const { return _boundaryRadius.size() - 1; }
 
 std::pair<Real, Real> DeckModel::LayerRadii(Int i) const {

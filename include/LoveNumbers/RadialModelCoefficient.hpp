@@ -3,18 +3,19 @@
 #include "LoveNumbers/Configure.hpp"
 #include "mfem.hpp"
 #include <complex>
+#include <concepts>
 #include <iostream>
 
 namespace LoveNumbers {
 
 template <typename Function>
-class RadialCoefficient : public mfem::Coefficient {
+class RadialModelCoefficient : public mfem::Coefficient {
 private:
   Function _f;
 
 public:
-  // Construct from a function of signature Real(Real, Int).
-  RadialCoefficient(Function &&f) : _f{f} {}
+  RadialModelCoefficient() = default;
+  RadialModelCoefficient(Function &&f) : _f{f} {}
 
   Real Eval(mfem::ElementTransformation &T,
             const mfem::IntegrationPoint &ip) override {

@@ -66,6 +66,9 @@ public:
     return ForceScale() / std::pow(LengthScale(), 2);
   }
 
+  // Return the potential energy scale.
+  Real PotentialScale() const { return AccelerationScale() * LengthScale(); }
+
 private:
   constexpr Real TimeScaleFromGravitationalConstant() const {
     return static_cast<Real>(1) /

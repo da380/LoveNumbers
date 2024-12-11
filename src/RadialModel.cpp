@@ -27,7 +27,7 @@ mfem::Array<Int> RadialModel::FluidMarker() const {
   return marker;
 }
 
-mfem::Array<Int> RadialModel::FreeSurfaceMarker() const {
+mfem::Array<Int> RadialModel::SurfaceMarker() const {
   auto marker = mfem::Array<Int>(NumberOfBoundaries());
   marker = 0;
   marker[NumberOfBoundaries() - 1] = 1;
@@ -83,6 +83,21 @@ mfem::Array<Int> RadialModel::AllBoundaryMarkerCentreExcluded() const {
   return marker;
 }
 
+mfem::Array<Int> RadialModel::CentreMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfBoundaries());
+  marker = 0;
+  marker[0] = 1;
+  return marker;
+}
+
+mfem::Array<Int> RadialModel::CentreAndSurfaceMarker() const {
+  auto marker = mfem::Array<Int>(NumberOfBoundaries());
+  marker = 0;
+  marker[0] = 1;
+  marker[NumberOfBoundaries() - 1] = 1;
+  return marker;
+}
+
 Int RadialModel::NumberOfBoundaries() const { return NumberOfLayers() + 1; }
 
 Real RadialModel::JeanLength(Int degree) const {
@@ -94,13 +109,7 @@ Real RadialModel::SurfaceRadius() const {
   return LayerRadii(NumberOfLayers() - 1).second;
 }
 
-void RadialModel::BuildMesh(Real maximumElementSize) {
-  auto maximumElementSizes =
-      std::vector<Real>(NumberOfLayers(), maximumElementSize);
-  BuildMesh(maximumElementSizes);
-}
-
-void RadialModel::BuildMesh(const std::vector<Real> &maximumElementSizes) {
+void RadialModel::BuildMesh(Real characteristicLengthScale) {
 
   // Clear the mesh in case already set up.
   _mesh.Clear();
@@ -110,7 +119,7 @@ void RadialModel::BuildMesh(const std::vector<Real> &maximumElementSizes) {
   for (auto i : LayerIndices()) {
     auto [r1, r2] = LayerRadii(i);
     elementsInLayer.push_back(
-        std::max<int>(1, std::round((r2 - r1) / maximumElementSizes[i])));
+        std::max<int>(1, std::round((r2 - r1) / characteristicLengthScale)));
   }
 
   // Initiallise the mesh.
@@ -158,13 +167,49 @@ void RadialModel::BuildMesh(const std::vector<Real> &maximumElementSizes) {
 
   // Finalise the mesh construction.
   _mesh.FinalizeMesh();
-}
 
-void RadialModel::SetFiniteElementSpaces(Int order) {
-  _L2 = std::make_unique<mfem::L2_FECollection>(order, 1);
-  _H1 = std::make_unique<mfem::H1_FECollection>(order, 1);
+  // Set the finite element spaces.
   _L2Space = std::make_unique<mfem::FiniteElementSpace>(&_mesh, _L2.get());
   _H1Space = std::make_unique<mfem::FiniteElementSpace>(&_mesh, _H1.get());
+
+  // Compute the surface gravity and moment of inertia factors.
+  ComputeSurfaceGravityAndMomentOfInertiaFactor();
+}
+
+void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
+  auto rhoCoefficient = RhoCoefficient();
+  auto rho = mfem::GridFunction(L2Space());
+  rho.ProjectCoefficient(rhoCoefficient);
+  {
+    auto kernel = RadialModelCoefficient(
+        [](auto r, auto attribute) { return std::pow(r, 2); });
+    auto b = mfem::LinearForm(L2Space());
+    b.AddDomainIntegrator(new mfem::DomainLFIntegrator(kernel));
+    b.Assemble();
+    auto factor = 4 * std::numbers::pi_v<Real> * GravitationalConstant() /
+                  std::pow(SurfaceRadius(), 2);
+    _surfaceGravity = factor * (b * rho);
+  }
+
+  {
+    auto kernel = RadialModelCoefficient(
+        [](auto r, auto attribute) { return std::pow(r, 4); });
+    auto b = mfem::LinearForm(L2Space());
+    b.AddDomainIntegrator(new mfem::DomainLFIntegrator(kernel));
+    b.Assemble();
+    auto factor = 8 * std::numbers::pi_v<Real> * GravitationalConstant() /
+                  (3 * _surfaceGravity * std::pow(SurfaceRadius(), 4));
+    _momentOfInertiaFactor = factor * (b * rho);
+  }
+}
+
+void RadialModel::ComputeGravitationalPotential() {
+
+  // Initialise the GridFunction.
+  _gravitationalPotential = mfem::GridFunction(H1Space());
+
+  // Build the linear form.
+  auto rhoCoefficient = RhoCoefficient();
 }
 
 void RadialModel::WriteAsDeckModel(const std::string &fileName,
@@ -180,31 +225,23 @@ void RadialModel::WriteAsDeckModel(const std::string &fileName,
   }
 
   // Loop over the layers
-  /*
   for (auto i = 0; i < NumberOfLayers(); i++) {
+    auto attribute = i + 1;
     auto [r0, r1] = LayerRadii(i);
     auto n = std::max<Int>(2, std::round((r1 - r0) / maximumKnotSpacing));
     auto dr = (r1 - r0) / (n - 1);
-    auto rho = Rho(i);
-    auto vpv = VPV(i);
-    auto vsv = VSV(i);
-    auto qKappa = QKappa(i);
-    auto qMu = QMu(i);
-    auto vph = VPH(i);
-    auto vsh = VSH(i);
-    auto eta = Eta(i);
-
     for (auto j = 0; j < n; j++) {
       auto r = r0 + j * dr;
       modelFile << std::format(
           "{:>11.3f} {:>11.3f} {:>11.3f} {:>11.3f} {:>11.3f} "
           "{:>11.3f} {:>11.3f} {:>11.3f} {:>11.3f}\n",
-          r * LengthScale(), rho(r) * DensityScale(), vpv(r) * VelocityScale(),
-          vsv(r) * VelocityScale(), qKappa(r), qMu(r), vph(r) * VelocityScale(),
-          vsh(r) * VelocityScale(), eta(r));
+          r * LengthScale(), Rho()(r, attribute) * DensityScale(),
+          VPV()(r, attribute) * VelocityScale(),
+          VSV()(r, attribute) * VelocityScale(), QKappa()(r, attribute),
+          QMu()(r, attribute), VPH()(r, attribute) * VelocityScale(),
+          VSH()(r, attribute) * VelocityScale(), Eta()(r, attribute));
     }
   }
-*/
 }
 
 void RadialModel::WriteAsDeckModel(const std::string &fileName,
