@@ -241,7 +241,7 @@ void RadialModel::ComputeGravitationalPotential() {
 
   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
   GSSmoother M((SparseMatrix &)(*A));
-  PCG(*A, M, B, X, 1, H1Space()->GetNDofs() * 2, 1e-12, 0.0);
+  PCG(*A, M, B, X, 0, H1Space()->GetNDofs() * 2, 1e-12, 0.0);
   a.RecoverFEMSolution(X, b, *_gravitationalPotential);
 
   // Form the gravitational acceleration.
@@ -342,6 +342,69 @@ std::function<Real(Real, Int)> RadialModel::Mu() const {
            (C()(r, attribute) + A()(r, attribute) + 6 * L()(r, attribute) +
             5 * N()(r, attribute) - 2 * F()(r, attribute));
   };
+}
+
+void RadialModel::WriteGridFunction(const mfem::GridFunction &f,
+                                    const std::string &file, Real scale) const {
+
+  // Loop over the mesh storing values.
+  auto pairs = std::vector<std::pair<Real, Real>>();
+  auto point = mfem::Vector();
+  auto *fes = f.FESpace();
+  for (auto i = 0; i < Mesh().GetNE(); i++) {
+    auto *el = fes->GetFE(i);
+    auto *eltrans = fes->GetElementTransformation(i);
+    auto &ir = el->GetNodes();
+    auto values = mfem::Vector();
+    f.GetValues(*eltrans, ir, values);
+    for (auto j = 0; j < ir.GetNPoints(); j++) {
+      auto &ip = ir.IntPoint(j);
+      eltrans->SetIntPoint(&ip);
+      eltrans->Transform(ip, point);
+      pairs.push_back({point[0], values[j]});
+    }
+  }
+
+  // Sort the radii to insure the proper ordering.
+  std::ranges::sort(pairs,
+                    [](auto p1, auto p2) { return p1.first < p2.first; });
+
+  // Write the values to the file.
+  auto fout = std::ofstream(file);
+  for (auto [r, v] : pairs) {
+    fout << r * LengthScale() << " " << v * scale << std::endl;
+  }
+}
+
+void RadialModel::WriteCoefficient(mfem::Coefficient &&f,
+                                   const std::string &file, Real scale) const {
+
+  // Loop over the mesh storing values.
+  auto pairs = std::vector<std::pair<Real, Real>>();
+  auto point = mfem::Vector();
+  auto *fes = H1Space();
+  for (auto i = 0; i < Mesh().GetNE(); i++) {
+    auto *el = fes->GetFE(i);
+    auto *eltrans = fes->GetElementTransformation(i);
+    auto &ir = el->GetNodes();
+    for (auto j = 0; j < ir.GetNPoints(); j++) {
+      auto &ip = ir.IntPoint(j);
+      eltrans->SetIntPoint(&ip);
+      eltrans->Transform(ip, point);
+      auto value = f.Eval(*eltrans, ip);
+      pairs.push_back({point[0], value});
+    }
+  }
+
+  // Sort the radii to insure the proper ordering.
+  std::ranges::stable_sort(
+      pairs, [](auto p1, auto p2) { return p1.first < p2.first; });
+
+  // Write the values to the file.
+  auto fout = std::ofstream(file);
+  for (auto [r, v] : pairs) {
+    fout << r * LengthScale() << " " << v * scale << std::endl;
+  }
 }
 
 } // namespace LoveNumbers

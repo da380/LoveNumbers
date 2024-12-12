@@ -177,35 +177,26 @@ public:
   auto MuCoefficient() const { return RadialModelCoefficient(QMu()); }
 
   // MFEM Coefficients for computed properties.
-  auto PhiCoefficient() const {
+  auto GravitationalPotentialCoefficient() const {
     return mfem::GridFunctionCoefficient(_gravitationalPotential.get());
   }
 
-  auto &Phi() const { return *_gravitationalPotential; }
-  auto &g() const { return *_gravitationalAcceleration; }
-
-  void WriteGridFunction(const mfem::GridFunction &f, const std::string &file,
-                         Real scale = 1) const {
-    const auto *fes = f.FESpace();
-    auto fout = std::ofstream(file);
-    auto point = mfem::Vector();
-    for (auto i = 0; i < Mesh().GetNE(); i++) {
-      auto *el = fes->GetFE(i);
-      auto *eltrans = fes->GetElementTransformation(i);
-      auto &ir = el->GetNodes();
-      for (auto j = 0; j < ir.GetNPoints(); j++) {
-        auto &ip = ir.IntPoint(j);
-        eltrans->SetIntPoint(&ip);
-        eltrans->Transform(ip, point);
-        fout << point[0] * LengthScale() << " " << f.GetValue(i, ip) * scale
-             << std::endl;
-      }
-    }
+  auto GravitationalAccelerationCoefficient() const {
+    return mfem::GridFunctionCoefficient(_gravitationalAcceleration.get());
   }
 
+  // Write a scalar GridFunction to a file using a simple format for plotting.
+  void WriteGridFunction(const mfem::GridFunction &f, const std::string &file,
+                         Real scale = 1) const;
+
+  // Write a RadialModelCoefficient to a file using a simple format for
+  // plotting.
+  void WriteCoefficient(mfem::Coefficient &&f, const std::string &file,
+                        Real scale = 1) const;
+
 private:
-  // Compute the surface gravitational acceleration and moment of inertia factor
-  // via the radial integrals.
+  // Compute the surface gravitational acceleration and moment of inertia
+  // factor via the radial integrals.
   void ComputeSurfaceGravityAndMomentOfInertiaFactor();
 
   // Compute the gravitational potential field through solution of the radial

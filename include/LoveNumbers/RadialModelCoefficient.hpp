@@ -5,10 +5,16 @@
 #include <complex>
 #include <concepts>
 #include <iostream>
+#include <type_traits>
 
 namespace LoveNumbers {
 
 template <typename Function>
+  requires requires() {
+    requires std::regular_invocable<Function, Real, Int>;
+    requires std::convertible_to<std::invoke_result_t<Function, Real, Int>,
+                                 Real>;
+  }
 class RadialModelCoefficient : public mfem::Coefficient {
 private:
   Function _f;
