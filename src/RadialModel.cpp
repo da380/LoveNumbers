@@ -1,5 +1,6 @@
 #include "LoveNumbers/RadialModel.hpp"
 #include <cstddef>
+#include <memory>
 
 namespace LoveNumbers {
 
@@ -174,6 +175,9 @@ void RadialModel::BuildMesh(Real characteristicLengthScale) {
 
   // Compute the surface gravity and moment of inertia factors.
   ComputeSurfaceGravityAndMomentOfInertiaFactor();
+
+  // Compute the interior gravitational potential and acceleration.
+  ComputeGravitationalPotential();
 }
 
 void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
@@ -205,11 +209,44 @@ void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
 
 void RadialModel::ComputeGravitationalPotential() {
 
-  // Initialise the GridFunction.
-  _gravitationalPotential = mfem::GridFunction(H1Space());
+  using namespace mfem;
 
-  // Build the linear form.
-  auto rhoCoefficient = RhoCoefficient();
+  // Set up the linear form.
+  auto rhoTimesRadiusSquared = RadialModelCoefficient(
+      [this](auto r, auto attribute) { return Rho()(r, attribute) * r * r; });
+  auto b = LinearForm(H1Space());
+  b.AddDomainIntegrator(new DomainLFIntegrator(rhoTimesRadiusSquared));
+  b.Assemble();
+  b *= -(4 * std::numbers::pi_v<Real> * GravitationalConstant());
+
+  // Set up the bilinear form.
+  auto a = BilinearForm(H1Space());
+  auto radiusSquared =
+      RadialModelCoefficient([](auto r, auto attribute) { return r * r; });
+  a.AddDomainIntegrator(new DiffusionIntegrator(radiusSquared));
+  auto DtN = ConstantCoefficient(SurfaceRadius());
+  auto surfaceMarker = SurfaceMarker();
+  a.AddBoundaryIntegrator(new BoundaryMassIntegrator(DtN), surfaceMarker);
+  a.Assemble();
+
+  // Set up the solution vector with appropriate boundary values.
+  _gravitationalPotential = std::make_unique<GridFunction>(H1Space());
+  *_gravitationalPotential = 0;
+
+  // Set up the linear system.
+  OperatorPtr A;
+  Vector B, X;
+  auto ess_tdof_list = Array<Int>();
+  a.FormLinearSystem(ess_tdof_list, *_gravitationalPotential, b, A, X, B);
+
+  // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+  GSSmoother M((SparseMatrix &)(*A));
+  PCG(*A, M, B, X, 1, H1Space()->GetNDofs() * 2, 1e-12, 0.0);
+  a.RecoverFEMSolution(X, b, *_gravitationalPotential);
+
+  // Form the gravitational acceleration.
+  _gravitationalAcceleration = std::make_unique<GridFunction>(L2Space());
+  _gravitationalPotential->GetDerivative(1, 0, *_gravitationalAcceleration);
 }
 
 void RadialModel::WriteAsDeckModel(const std::string &fileName,

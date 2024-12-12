@@ -46,13 +46,14 @@ private:
   Real _surfaceGravity;
   Real _momentOfInertiaFactor;
 
-  mfem::GridFunction _gravitationalPotential;
+  std::unique_ptr<mfem::GridFunction> _gravitationalPotential;
+  std::unique_ptr<mfem::GridFunction> _gravitationalAcceleration;
 
 public:
   // Constructor to be called from derived classes.
   RadialModel(const Dimensions &dimensions, Int order)
       : Dimensions(dimensions), _order{order},
-        _L2{std::make_unique<mfem::L2_FECollection>(order, 1)},
+        _L2{std::make_unique<mfem::L2_FECollection>(order - 1, 1)},
         _H1{std::make_unique<mfem::H1_FECollection>(order, 1)} {}
 
   // Return the number of layers.
@@ -127,6 +128,7 @@ public:
 
   // Return a reference to the mesh.
   mfem::Mesh &Mesh() { return _mesh; }
+  const mfem::Mesh &Mesh() const { return _mesh; }
 
   // Return pointers to the finite element spaces.
   mfem::FiniteElementSpace *L2Space() const { return _L2Space.get(); }
@@ -176,7 +178,29 @@ public:
 
   // MFEM Coefficients for computed properties.
   auto PhiCoefficient() const {
-    return mfem::GridFunctionCoefficient(&_gravitationalPotential);
+    return mfem::GridFunctionCoefficient(_gravitationalPotential.get());
+  }
+
+  auto &Phi() const { return *_gravitationalPotential; }
+  auto &g() const { return *_gravitationalAcceleration; }
+
+  void WriteGridFunction(const mfem::GridFunction &f, const std::string &file,
+                         Real scale = 1) const {
+    const auto *fes = f.FESpace();
+    auto fout = std::ofstream(file);
+    auto point = mfem::Vector();
+    for (auto i = 0; i < Mesh().GetNE(); i++) {
+      auto *el = fes->GetFE(i);
+      auto *eltrans = fes->GetElementTransformation(i);
+      auto &ir = el->GetNodes();
+      for (auto j = 0; j < ir.GetNPoints(); j++) {
+        auto &ip = ir.IntPoint(j);
+        eltrans->SetIntPoint(&ip);
+        eltrans->Transform(ip, point);
+        fout << point[0] * LengthScale() << " " << f.GetValue(i, ip) * scale
+             << std::endl;
+      }
+    }
   }
 
 private:
