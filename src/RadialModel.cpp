@@ -1,6 +1,4 @@
 #include "LoveNumbers/RadialModel.hpp"
-#include <cstddef>
-#include <memory>
 
 namespace LoveNumbers {
 
@@ -182,12 +180,12 @@ void RadialModel::BuildMesh(Real characteristicLengthScale) {
 
 void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
   auto rhoCoefficient = RhoCoefficient();
-  auto rho = mfem::GridFunction(L2Space());
+  auto rho = mfem::GridFunction(&L2Space());
   rho.ProjectCoefficient(rhoCoefficient);
   {
     auto kernel = RadialModelCoefficient(
         [](auto r, auto attribute) { return std::pow(r, 2); });
-    auto b = mfem::LinearForm(L2Space());
+    auto b = mfem::LinearForm(&L2Space());
     b.AddDomainIntegrator(new mfem::DomainLFIntegrator(kernel));
     b.Assemble();
     auto factor = 4 * std::numbers::pi_v<Real> * GravitationalConstant() /
@@ -198,7 +196,7 @@ void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
   {
     auto kernel = RadialModelCoefficient(
         [](auto r, auto attribute) { return std::pow(r, 4); });
-    auto b = mfem::LinearForm(L2Space());
+    auto b = mfem::LinearForm(&L2Space());
     b.AddDomainIntegrator(new mfem::DomainLFIntegrator(kernel));
     b.Assemble();
     auto factor = 8 * std::numbers::pi_v<Real> * GravitationalConstant() /
@@ -214,13 +212,13 @@ void RadialModel::ComputeGravitationalPotential() {
   // Set up the linear form.
   auto rhoTimesRadiusSquared = RadialModelCoefficient(
       [this](auto r, auto attribute) { return Rho()(r, attribute) * r * r; });
-  auto b = LinearForm(H1Space());
+  auto b = LinearForm(&H1Space());
   b.AddDomainIntegrator(new DomainLFIntegrator(rhoTimesRadiusSquared));
   b.Assemble();
   b *= -(4 * std::numbers::pi_v<Real> * GravitationalConstant());
 
   // Set up the bilinear form.
-  auto a = BilinearForm(H1Space());
+  auto a = BilinearForm(&H1Space());
   auto radiusSquared =
       RadialModelCoefficient([](auto r, auto attribute) { return r * r; });
   a.AddDomainIntegrator(new DiffusionIntegrator(radiusSquared));
@@ -230,7 +228,7 @@ void RadialModel::ComputeGravitationalPotential() {
   a.Assemble();
 
   // Set up the solution vector with appropriate boundary values.
-  _gravitationalPotential = std::make_unique<GridFunction>(H1Space());
+  _gravitationalPotential = std::make_unique<GridFunction>(&H1Space());
   *_gravitationalPotential = 0;
 
   // Set up the linear system.
@@ -241,11 +239,11 @@ void RadialModel::ComputeGravitationalPotential() {
 
   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
   GSSmoother M((SparseMatrix &)(*A));
-  PCG(*A, M, B, X, 0, H1Space()->GetNDofs() * 2, 1e-12, 0.0);
+  PCG(*A, M, B, X, 0, H1Space().GetNDofs() * 2, 1e-12, 0.0);
   a.RecoverFEMSolution(X, b, *_gravitationalPotential);
 
   // Form the gravitational acceleration.
-  _gravitationalAcceleration = std::make_unique<GridFunction>(L2Space());
+  _gravitationalAcceleration = std::make_unique<GridFunction>(&L2Space());
   _gravitationalPotential->GetDerivative(1, 0, *_gravitationalAcceleration);
 }
 
@@ -382,10 +380,10 @@ void RadialModel::WriteCoefficient(mfem::Coefficient &&f,
   // Loop over the mesh storing values.
   auto pairs = std::vector<std::pair<Real, Real>>();
   auto point = mfem::Vector();
-  auto *fes = H1Space();
+  auto &fes = H1Space();
   for (auto i = 0; i < Mesh().GetNE(); i++) {
-    auto *el = fes->GetFE(i);
-    auto *eltrans = fes->GetElementTransformation(i);
+    auto *el = fes.GetFE(i);
+    auto *eltrans = fes.GetElementTransformation(i);
     auto &ir = el->GetNodes();
     for (auto j = 0; j < ir.GetNPoints(); j++) {
       auto &ip = ir.IntPoint(j);

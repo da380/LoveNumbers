@@ -1,8 +1,5 @@
 #pragma once
 
-#include "Dimensions.hpp"
-#include "RadialModelCoefficient.hpp"
-#include "mfem.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -20,8 +17,10 @@
 #include <type_traits>
 #include <vector>
 
-#include "LoveNumbers/Configure.hpp"
-#include "LoveNumbers/Dimensions.hpp"
+#include "Coefficients.hpp"
+#include "Configure.hpp"
+#include "Dimensions.hpp"
+#include "mfem.hpp"
 
 namespace LoveNumbers {
 
@@ -131,8 +130,8 @@ public:
   const mfem::Mesh &Mesh() const { return _mesh; }
 
   // Return pointers to the finite element spaces.
-  mfem::FiniteElementSpace *L2Space() const { return _L2Space.get(); }
-  mfem::FiniteElementSpace *H1Space() const { return _H1Space.get(); }
+  auto &L2Space() const { return *_L2Space; }
+  auto &H1Space() const { return *_H1Space; }
 
   // Print the radial mesh to the given file.
   void PrintMesh(const std::string &mesh_file);
