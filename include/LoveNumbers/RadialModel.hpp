@@ -20,6 +20,7 @@
 #include "Coefficients.hpp"
 #include "Configure.hpp"
 #include "Dimensions.hpp"
+#include "LinearForms.hpp"
 #include "mfem.hpp"
 
 namespace LoveNumbers {
@@ -164,16 +165,16 @@ public:
   std::function<Real(Real, Int)> Mu() const;
 
   // MFEM Coefficients for material parameters.
-  auto RhoCoefficient() const { return RadialModelCoefficient(Rho()); }
-  auto ACoefficient() const { return RadialModelCoefficient(A()); }
-  auto CCoefficient() const { return RadialModelCoefficient(C()); }
-  auto FCoefficient() const { return RadialModelCoefficient(F()); }
-  auto LCoefficient() const { return RadialModelCoefficient(L()); }
-  auto NCoefficient() const { return RadialModelCoefficient(N()); }
-  auto QKappaCoefficient() const { return RadialModelCoefficient(QKappa()); }
-  auto QMuCoefficient() const { return RadialModelCoefficient(QMu()); }
-  auto KappaCoefficient() const { return RadialModelCoefficient(Kappa()); }
-  auto MuCoefficient() const { return RadialModelCoefficient(QMu()); }
+  auto RhoCoefficient() const { return RadialCoefficient(Rho()); }
+  auto ACoefficient() const { return RadialCoefficient(A()); }
+  auto CCoefficient() const { return RadialCoefficient(C()); }
+  auto FCoefficient() const { return RadialCoefficient(F()); }
+  auto LCoefficient() const { return RadialCoefficient(L()); }
+  auto NCoefficient() const { return RadialCoefficient(N()); }
+  auto QKappaCoefficient() const { return RadialCoefficient(QKappa()); }
+  auto QMuCoefficient() const { return RadialCoefficient(QMu()); }
+  auto KappaCoefficient() const { return RadialCoefficient(Kappa()); }
+  auto MuCoefficient() const { return RadialCoefficient(QMu()); }
 
   // MFEM Coefficients for computed properties.
   auto GravitationalPotentialCoefficient() const {
@@ -188,7 +189,7 @@ public:
   void WriteGridFunction(const mfem::GridFunction &f, const std::string &file,
                          Real scale = 1) const;
 
-  // Write a RadialModelCoefficient to a file using a simple format for
+  // Write a RadialCoefficient to a file using a simple format for
   // plotting.
   void WriteCoefficient(mfem::Coefficient &&f, const std::string &file,
                         Real scale = 1) const;

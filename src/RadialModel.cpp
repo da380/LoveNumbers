@@ -183,7 +183,7 @@ void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
   auto rho = mfem::GridFunction(&L2Space());
   rho.ProjectCoefficient(rhoCoefficient);
   {
-    auto kernel = RadialModelCoefficient(
+    auto kernel = RadialCoefficient(
         [](auto r, auto attribute) { return std::pow(r, 2); });
     auto b = mfem::LinearForm(&L2Space());
     b.AddDomainIntegrator(new mfem::DomainLFIntegrator(kernel));
@@ -194,7 +194,7 @@ void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
   }
 
   {
-    auto kernel = RadialModelCoefficient(
+    auto kernel = RadialCoefficient(
         [](auto r, auto attribute) { return std::pow(r, 4); });
     auto b = mfem::LinearForm(&L2Space());
     b.AddDomainIntegrator(new mfem::DomainLFIntegrator(kernel));
@@ -210,17 +210,20 @@ void RadialModel::ComputeGravitationalPotential() {
   using namespace mfem;
 
   // Set up the linear form.
-  auto rhoTimesRadiusSquared = RadialModelCoefficient(
+  auto rhoTimesRadiusSquared = RadialCoefficient(
       [this](auto r, auto attribute) { return Rho()(r, attribute) * r * r; });
   auto b = LinearForm(&H1Space());
-  b.AddDomainIntegrator(new DomainLFIntegrator(rhoTimesRadiusSquared));
+  auto rho = RhoCoefficient();
+  // b.AddDomainIntegrator(new DomainLFIntegrator(rhoTimesRadiusSquared));
+  b.AddDomainIntegrator(new TestIntegrator(rho));
+
   b.Assemble();
   b *= -(4 * std::numbers::pi_v<Real> * GravitationalConstant());
 
   // Set up the bilinear form.
   auto a = BilinearForm(&H1Space());
   auto radiusSquared =
-      RadialModelCoefficient([](auto r, auto attribute) { return r * r; });
+      RadialCoefficient([](auto r, auto attribute) { return r * r; });
   a.AddDomainIntegrator(new DiffusionIntegrator(radiusSquared));
   auto DtN = ConstantCoefficient(SurfaceRadius());
   auto surfaceMarker = SurfaceMarker();
