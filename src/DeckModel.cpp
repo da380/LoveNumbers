@@ -48,14 +48,14 @@ void DeckModel::ReadModelFile(const std::string &fileName) {
 
     // Store the non-dimensionalised values.
     _r.push_back(r / LengthScale());
-    _rho.push_back(rho / DensityScale());
-    _A.push_back(A / TractionScale());
-    _C.push_back(C / TractionScale());
-    _F.push_back(F / TractionScale());
-    _L.push_back(L / TractionScale());
-    _N.push_back(N / TractionScale());
-    _QKappa.push_back(QKappa);
-    _QMu.push_back(QMu);
+    _density.push_back(rho / DensityScale());
+    _LoveModulusA.push_back(A / TractionScale());
+    _LoveModulusC.push_back(C / TractionScale());
+    _LoveModulusF.push_back(F / TractionScale());
+    _LoveModulusL.push_back(L / TractionScale());
+    _LoveModulusN.push_back(N / TractionScale());
+    _bulkQualityFactor.push_back(QKappa);
+    _shearQualityFactor.push_back(QMu);
   }
 
   // Work out the layering.
@@ -79,51 +79,63 @@ void DeckModel::ReadModelFile(const std::string &fileName) {
     auto i1 = _boundaryIndex[i + 1];
     auto rS = std::next(_r.begin(), i0);
     auto rF = std::next(_r.begin(), i1);
-    _rhoSplines.push_back(Spline(rS, rF, std::next(_rho.begin(), i0)));
-    _ASplines.push_back(Spline(rS, rF, std::next(_A.begin(), i0)));
-    _CSplines.push_back(Spline(rS, rF, std::next(_C.begin(), i0)));
-    _FSplines.push_back(Spline(rS, rF, std::next(_F.begin(), i0)));
-    _LSplines.push_back(Spline(rS, rF, std::next(_L.begin(), i0)));
-    _NSplines.push_back(Spline(rS, rF, std::next(_N.begin(), i0)));
-    _QKappaSplines.push_back(Spline(rS, rF, std::next(_QKappa.begin(), i0)));
-    _QMuSplines.push_back(Spline(rS, rF, std::next(_QMu.begin(), i0)));
+    _densities.push_back(Spline(rS, rF, std::next(_density.begin(), i0)));
+    _LoveModuliiA.push_back(
+        Spline(rS, rF, std::next(_LoveModulusA.begin(), i0)));
+    _LoveModuliiC.push_back(
+        Spline(rS, rF, std::next(_LoveModulusC.begin(), i0)));
+    _LoveModuliiF.push_back(
+        Spline(rS, rF, std::next(_LoveModulusF.begin(), i0)));
+    _LoveModuliiL.push_back(
+        Spline(rS, rF, std::next(_LoveModulusL.begin(), i0)));
+    _LoveModuliiN.push_back(
+        Spline(rS, rF, std::next(_LoveModulusN.begin(), i0)));
+    _bulkQualityFactors.push_back(
+        Spline(rS, rF, std::next(_bulkQualityFactor.begin(), i0)));
+    _shearQualityFactors.push_back(
+        Spline(rS, rF, std::next(_shearQualityFactor.begin(), i0)));
   }
 }
 
-std::function<Real(Real, Int)> DeckModel::Rho() const {
+std::function<Real(Real, Int)> DeckModel::Density() const {
+  return [this](Real r, Int attribute) { return _densities[attribute - 1](r); };
+}
+
+std::function<Real(Real, Int)> DeckModel::LoveModulusA() const {
   return
-      [this](Real r, Int attribute) { return _rhoSplines[attribute - 1](r); };
+      [this](Real r, Int attribute) { return _LoveModuliiA[attribute - 1](r); };
 }
 
-std::function<Real(Real, Int)> DeckModel::A() const {
-  return [this](Real r, Int attribute) { return _ASplines[attribute - 1](r); };
+std::function<Real(Real, Int)> DeckModel::LoveModulusC() const {
+  return
+      [this](Real r, Int attribute) { return _LoveModuliiC[attribute - 1](r); };
 }
 
-std::function<Real(Real, Int)> DeckModel::C() const {
-  return [this](Real r, Int attribute) { return _CSplines[attribute - 1](r); };
+std::function<Real(Real, Int)> DeckModel::LoveModulusF() const {
+  return
+      [this](Real r, Int attribute) { return _LoveModuliiF[attribute - 1](r); };
 }
 
-std::function<Real(Real, Int)> DeckModel::F() const {
-  return [this](Real r, Int attribute) { return _FSplines[attribute - 1](r); };
+std::function<Real(Real, Int)> DeckModel::LoveModulusL() const {
+  return
+      [this](Real r, Int attribute) { return _LoveModuliiL[attribute - 1](r); };
 }
 
-std::function<Real(Real, Int)> DeckModel::L() const {
-  return [this](Real r, Int attribute) { return _LSplines[attribute - 1](r); };
+std::function<Real(Real, Int)> DeckModel::LoveModulusN() const {
+  return
+      [this](Real r, Int attribute) { return _LoveModuliiN[attribute - 1](r); };
 }
 
-std::function<Real(Real, Int)> DeckModel::N() const {
-  return [this](Real r, Int attribute) { return _NSplines[attribute - 1](r); };
-}
-
-std::function<Real(Real, Int)> DeckModel::QKappa() const {
+std::function<Real(Real, Int)> DeckModel::BulkQualityFactor() const {
   return [this](Real r, Int attribute) {
-    return _QKappaSplines[attribute - 1](r);
+    return _bulkQualityFactors[attribute - 1](r);
   };
 }
 
-std::function<Real(Real, Int)> DeckModel::QMu() const {
-  return
-      [this](Real r, Int attribute) { return _QMuSplines[attribute - 1](r); };
+std::function<Real(Real, Int)> DeckModel::ShearQualityFactor() const {
+  return [this](Real r, Int attribute) {
+    return _shearQualityFactors[attribute - 1](r);
+  };
 }
 
 } // namespace LoveNumbers

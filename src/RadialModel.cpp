@@ -176,12 +176,14 @@ void RadialModel::BuildMesh(Real characteristicLengthScale) {
 
   // Compute the interior gravitational potential and acceleration.
   ComputeGravitationalPotential();
+
+  // Compute the derivative of the density.
 }
 
 void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
-  auto rhoCoefficient = RhoCoefficient();
-  auto rho = mfem::GridFunction(&L2Space());
-  rho.ProjectCoefficient(rhoCoefficient);
+  auto densityCoefficient = DensityCoefficient();
+  auto density = mfem::GridFunction(&L2Space());
+  density.ProjectCoefficient(densityCoefficient);
   {
     auto kernel = RadialCoefficient(
         [](auto r, auto attribute) { return std::pow(r, 2); });
@@ -190,7 +192,7 @@ void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
     b.Assemble();
     auto factor = 4 * std::numbers::pi_v<Real> * GravitationalConstant() /
                   std::pow(SurfaceRadius(), 2);
-    _surfaceGravity = factor * (b * rho);
+    _surfaceGravity = factor * (b(density));
   }
 
   {
@@ -201,7 +203,7 @@ void RadialModel::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
     b.Assemble();
     auto factor = 8 * std::numbers::pi_v<Real> * GravitationalConstant() /
                   (3 * _surfaceGravity * std::pow(SurfaceRadius(), 4));
-    _momentOfInertiaFactor = factor * (b * rho);
+    _momentOfInertiaFactor = factor * (b * density);
   }
 }
 
@@ -210,15 +212,15 @@ void RadialModel::ComputeGravitationalPotential() {
   using namespace mfem;
 
   // Set up the linear form.
-  auto rhoTimesRadiusSquared = RadialCoefficient(
-      [this](auto r, auto attribute) { return Rho()(r, attribute) * r * r; });
+  auto densityTimesRadiusSquared =
+      RadialCoefficient([this](auto r, auto attribute) {
+        const auto factor =
+            -(4 * std::numbers::pi_v<Real> * GravitationalConstant());
+        return factor * Density()(r, attribute) * r * r;
+      });
   auto b = LinearForm(&H1Space());
-  auto rho = RhoCoefficient();
-  // b.AddDomainIntegrator(new DomainLFIntegrator(rhoTimesRadiusSquared));
-  b.AddDomainIntegrator(new TestIntegrator(rho));
-
+  b.AddDomainIntegrator(new DomainLFIntegrator(densityTimesRadiusSquared));
   b.Assemble();
-  b *= -(4 * std::numbers::pi_v<Real> * GravitationalConstant());
 
   // Set up the bilinear form.
   auto a = BilinearForm(&H1Space());
@@ -241,13 +243,17 @@ void RadialModel::ComputeGravitationalPotential() {
   a.FormLinearSystem(ess_tdof_list, *_gravitationalPotential, b, A, X, B);
 
   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-  GSSmoother M((SparseMatrix &)(*A));
+  // GSSmoother M((SparseMatrix &)(*A));
+  GSSmoother M(dynamic_cast<SparseMatrix &>(*A));
   PCG(*A, M, B, X, 0, H1Space().GetNDofs() * 2, 1e-12, 0.0);
   a.RecoverFEMSolution(X, b, *_gravitationalPotential);
 
   // Form the gravitational acceleration.
   _gravitationalAcceleration = std::make_unique<GridFunction>(&L2Space());
   _gravitationalPotential->GetDerivative(1, 0, *_gravitationalAcceleration);
+
+  // Form the density derivative.
+  _densityDerivative = std::make_unique<GridFunction>(&L2Space());
 }
 
 void RadialModel::WriteAsDeckModel(const std::string &fileName,
@@ -273,11 +279,13 @@ void RadialModel::WriteAsDeckModel(const std::string &fileName,
       modelFile << std::format(
           "{:>11.3f} {:>11.3f} {:>11.3f} {:>11.3f} {:>11.3f} "
           "{:>11.3f} {:>11.3f} {:>11.3f} {:>11.3f}\n",
-          r * LengthScale(), Rho()(r, attribute) * DensityScale(),
-          VPV()(r, attribute) * VelocityScale(),
-          VSV()(r, attribute) * VelocityScale(), QKappa()(r, attribute),
-          QMu()(r, attribute), VPH()(r, attribute) * VelocityScale(),
-          VSH()(r, attribute) * VelocityScale(), Eta()(r, attribute));
+          r * LengthScale(), Density()(r, attribute) * DensityScale(),
+          VerticalPVelocity()(r, attribute) * VelocityScale(),
+          VerticalSVelocity()(r, attribute) * VelocityScale(),
+          BulkQualityFactor()(r, attribute), ShearQualityFactor()(r, attribute),
+          HorizontalPVelocity()(r, attribute) * VelocityScale(),
+          HorizontalSVelocity()(r, attribute) * VelocityScale(),
+          AnisotropicEtaParameter()(r, attribute));
     }
   }
 }
@@ -296,94 +304,123 @@ void RadialModel::PrintMesh(const std::string &mesh_file) {
   ofs.close();
 }
 
-std::function<Real(Real, Int)> RadialModel::VPV() const {
+std::function<Real(Real, Int)> RadialModel::VerticalPVelocity() const {
   return [this](Real r, Real attribute) {
-    return std::sqrt(C()(r, attribute) / Rho()(r, attribute));
+    return std::sqrt(LoveModulusC()(r, attribute) / Density()(r, attribute));
   };
 }
 
-std::function<Real(Real, Int)> RadialModel::VSV() const {
+std::function<Real(Real, Int)> RadialModel::VerticalSVelocity() const {
   return [this](Real r, Real attribute) {
-    return std::sqrt(L()(r, attribute) / Rho()(r, attribute));
+    return std::sqrt(LoveModulusL()(r, attribute) / Density()(r, attribute));
   };
 }
 
-std::function<Real(Real, Int)> RadialModel::VPH() const {
+std::function<Real(Real, Int)> RadialModel::HorizontalPVelocity() const {
   return [this](Real r, Real attribute) {
-    return std::sqrt(A()(r, attribute) / Rho()(r, attribute));
+    return std::sqrt(LoveModulusA()(r, attribute) / Density()(r, attribute));
   };
 }
 
-std::function<Real(Real, Int)> RadialModel::VSH() const {
+std::function<Real(Real, Int)> RadialModel::HorizontalSVelocity() const {
   return [this](Real r, Real attribute) {
-    return std::sqrt(N()(r, attribute) / Rho()(r, attribute));
+    return std::sqrt(LoveModulusN()(r, attribute) / Density()(r, attribute));
   };
 }
 
-std::function<Real(Real, Int)> RadialModel::Eta() const {
+std::function<Real(Real, Int)> RadialModel::AnisotropicEtaParameter() const {
   return [this](Real r, Real attribute) {
-    return F()(r, attribute) / (A()(r, attribute) - 2 * L()(r, attribute));
+    return LoveModulusF()(r, attribute) /
+           (LoveModulusA()(r, attribute) - 2 * LoveModulusL()(r, attribute));
   };
 }
 
-std::function<Real(Real, Int)> RadialModel::Kappa() const {
+std::function<Real(Real, Int)> RadialModel::BulkModulus() const {
   return [this](Real r, Real attribute) {
     constexpr auto ninth = static_cast<Real>(1) / static_cast<Real>(9);
     return ninth *
-           (C()(r, attribute) +
-            4 * (A()(r, attribute) - N()(r, attribute) + F()(r, attribute)));
+           (LoveModulusC()(r, attribute) +
+            4 * (LoveModulusA()(r, attribute) - LoveModulusN()(r, attribute) +
+                 LoveModulusF()(r, attribute)));
   };
 }
 
-std::function<Real(Real, Int)> RadialModel::Mu() const {
+std::function<Real(Real, Int)> RadialModel::ShearModulus() const {
   return [this](Real r, Real attribute) {
     constexpr auto fifteenth = static_cast<Real>(1) / static_cast<Real>(15);
-
     return fifteenth *
-           (C()(r, attribute) + A()(r, attribute) + 6 * L()(r, attribute) +
-            5 * N()(r, attribute) - 2 * F()(r, attribute));
+           (LoveModulusC()(r, attribute) + LoveModulusA()(r, attribute) +
+            6 * LoveModulusL()(r, attribute) +
+            5 * LoveModulusN()(r, attribute) -
+            2 * LoveModulusF()(r, attribute));
   };
 }
 
-void RadialModel::WriteGridFunction(const mfem::GridFunction &f,
-                                    const std::string &file, Real scale) const {
+void RadialModel::Write(const mfem::GridFunction &f, const std::string &file,
+                        Real scale) const {
 
-  // Loop over the mesh storing values.
-  auto pairs = std::vector<std::pair<Real, Real>>();
-  auto point = mfem::Vector();
+  using namespace mfem;
+  auto fout = std::ofstream(file);
+  auto point = Vector(1);
+  auto values = Vector(Order() + 1);
+  auto pairs = std::vector<std::pair<Real, Real>>(Order() + 1);
   auto *fes = f.FESpace();
   for (auto i = 0; i < Mesh().GetNE(); i++) {
     auto *el = fes->GetFE(i);
     auto *eltrans = fes->GetElementTransformation(i);
     auto &ir = el->GetNodes();
-    auto values = mfem::Vector();
     f.GetValues(*eltrans, ir, values);
     for (auto j = 0; j < ir.GetNPoints(); j++) {
       auto &ip = ir.IntPoint(j);
       eltrans->SetIntPoint(&ip);
       eltrans->Transform(ip, point);
-      pairs.push_back({point[0], values[j]});
+      pairs[j] = {point[0], values[j]};
     }
-  }
-
-  // Sort the radii to insure the proper ordering.
-  std::ranges::sort(pairs,
-                    [](auto p1, auto p2) { return p1.first < p2.first; });
-
-  // Write the values to the file.
-  auto fout = std::ofstream(file);
-  for (auto [r, v] : pairs) {
-    fout << r * LengthScale() << " " << v * scale << std::endl;
+    std::ranges::sort(pairs,
+                      [](auto p1, auto p2) { return p1.first < p2.first; });
+    for (auto [r, v] : pairs) {
+      fout << r * LengthScale() << " " << v * scale << std::endl;
+    }
   }
 }
 
-void RadialModel::WriteCoefficient(mfem::Coefficient &&f,
-                                   const std::string &file, Real scale) const {
+void RadialModel::WriteDerivative(const mfem::GridFunction &f,
+                                  const std::string &file, Real scale) const {
+
+  using namespace mfem;
+  auto fout = std::ofstream(file);
+  auto point = Vector(1);
+  auto grad = DenseMatrix(1, Order() + 1);
+  auto pairs = std::vector<std::pair<Real, Real>>(Order() + 1);
+  auto *fes = f.FESpace();
+  for (auto i = 0; i < Mesh().GetNE(); i++) {
+    auto *el = fes->GetFE(i);
+    auto *eltrans = fes->GetElementTransformation(i);
+    auto &ir = el->GetNodes();
+    f.GetGradients(*eltrans, ir, grad);
+    for (auto j = 0; j < ir.GetNPoints(); j++) {
+      auto &ip = ir.IntPoint(j);
+      eltrans->SetIntPoint(&ip);
+      eltrans->Transform(ip, point);
+      pairs[j] = {point[0], grad(0, j)};
+    }
+    std::ranges::sort(pairs,
+                      [](auto p1, auto p2) { return p1.first < p2.first; });
+    for (auto [r, v] : pairs) {
+      fout << r * LengthScale() << " " << v * scale / LengthScale()
+           << std::endl;
+    }
+  }
+}
+
+void RadialModel::Write(mfem::Coefficient &f, const std::string &file,
+                        Real scale) const {
 
   // Loop over the mesh storing values.
-  auto pairs = std::vector<std::pair<Real, Real>>();
-  auto point = mfem::Vector();
+  auto fout = std::ofstream(file);
   auto &fes = H1Space();
+  auto point = mfem::Vector(1);
+  auto pairs = std::vector<std::pair<Real, Real>>(Order() + 1);
   for (auto i = 0; i < Mesh().GetNE(); i++) {
     auto *el = fes.GetFE(i);
     auto *eltrans = fes.GetElementTransformation(i);
@@ -393,18 +430,48 @@ void RadialModel::WriteCoefficient(mfem::Coefficient &&f,
       eltrans->SetIntPoint(&ip);
       eltrans->Transform(ip, point);
       auto value = f.Eval(*eltrans, ip);
-      pairs.push_back({point[0], value});
+      pairs[j] = {point[0], value};
+    }
+    std::ranges::stable_sort(
+        pairs, [](auto p1, auto p2) { return p1.first < p2.first; });
+    for (auto [r, v] : pairs) {
+      fout << r * LengthScale() << " " << v * scale << std::endl;
     }
   }
+}
 
-  // Sort the radii to insure the proper ordering.
-  std::ranges::stable_sort(
-      pairs, [](auto p1, auto p2) { return p1.first < p2.first; });
-
-  // Write the values to the file.
+void RadialModel::WriteDerivative(mfem::Coefficient &f, const std::string &file,
+                                  Real scale) const {
+  using namespace mfem;
   auto fout = std::ofstream(file);
-  for (auto [r, v] : pairs) {
-    fout << r * LengthScale() << " " << v * scale << std::endl;
+  auto &fes = H1Space();
+  auto lval = Vector(Order() + 1);
+  auto dshape = DenseMatrix(Order() + 1, 1);
+  auto gh = Vector(1);
+  auto grad = Vector(1);
+  auto point = Vector(1);
+  auto pairs = std::vector<std::pair<Real, Real>>(Order() + 1);
+  for (auto i = 0; i < Mesh().GetNE(); i++) {
+    auto *el = fes.GetFE(i);
+    auto *tr = fes.GetElementTransformation(i);
+    el->Project(f, *tr, lval);
+    auto &ir = el->GetNodes();
+    for (auto j = 0; j < ir.GetNPoints(); j++) {
+      auto &ip = ir.IntPoint(j);
+      tr->SetIntPoint(&ip);
+      tr->Transform(ip, point);
+      el->CalcDShape(ip, dshape);
+      dshape.MultTranspose(lval, gh);
+      tr->InverseJacobian().MultTranspose(gh, grad);
+      pairs[j] = {point[0], grad[0]};
+    }
+    // Sort and write the values.
+    std::ranges::stable_sort(
+        pairs, [](auto p1, auto p2) { return p1.first < p2.first; });
+    for (auto [r, v] : pairs) {
+      fout << r * LengthScale() << " " << v * scale / LengthScale()
+           << std::endl;
+    }
   }
 }
 

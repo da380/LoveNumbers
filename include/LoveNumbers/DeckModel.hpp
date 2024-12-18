@@ -28,15 +28,15 @@ private:
   std::vector<std::string> _header;
 
   // Model values at the radial knots.
-  std::vector<Real> _r;      // radius
-  std::vector<Real> _rho;    // density
-  std::vector<Real> _A;      // Love parameter, A
-  std::vector<Real> _C;      // Love parameter, C
-  std::vector<Real> _F;      // Love parameter, F
-  std::vector<Real> _L;      // Love parameter, L
-  std::vector<Real> _N;      // Love parameter, N
-  std::vector<Real> _QKappa; // Bulk quality factor
-  std::vector<Real> _QMu;    // Shear quality factor
+  std::vector<Real> _r;
+  std::vector<Real> _density;
+  std::vector<Real> _LoveModulusA;
+  std::vector<Real> _LoveModulusC;
+  std::vector<Real> _LoveModulusF;
+  std::vector<Real> _LoveModulusL;
+  std::vector<Real> _LoveModulusN;
+  std::vector<Real> _bulkQualityFactor;
+  std::vector<Real> _shearQualityFactor;
 
   // Layering information.
   std::vector<Int> _boundaryIndex;
@@ -46,14 +46,14 @@ private:
   // Cubic spline interpolating functions within each layer.
   using Spline = Interpolation::CubicSpline<std::vector<Real>::iterator,
                                             std::vector<Real>::iterator>;
-  std::vector<Spline> _rhoSplines;
-  std::vector<Spline> _ASplines;
-  std::vector<Spline> _CSplines;
-  std::vector<Spline> _FSplines;
-  std::vector<Spline> _LSplines;
-  std::vector<Spline> _NSplines;
-  std::vector<Spline> _QKappaSplines;
-  std::vector<Spline> _QMuSplines;
+  std::vector<Spline> _densities;
+  std::vector<Spline> _LoveModuliiA;
+  std::vector<Spline> _LoveModuliiC;
+  std::vector<Spline> _LoveModuliiF;
+  std::vector<Spline> _LoveModuliiL;
+  std::vector<Spline> _LoveModuliiN;
+  std::vector<Spline> _bulkQualityFactors;
+  std::vector<Spline> _shearQualityFactors;
 
 public:
   DeckModel() = delete;
@@ -81,14 +81,14 @@ public:
   Int NumberOfKnots() const;
 
   // Functions to return material parameters functions.
-  std::function<Real(Real, Int)> Rho() const override;
-  std::function<Real(Real, Int)> A() const override;
-  std::function<Real(Real, Int)> C() const override;
-  std::function<Real(Real, Int)> F() const override;
-  std::function<Real(Real, Int)> L() const override;
-  std::function<Real(Real, Int)> N() const override;
-  std::function<Real(Real, Int)> QKappa() const override;
-  std::function<Real(Real, Int)> QMu() const override;
+  std::function<Real(Real, Int)> Density() const override;
+  std::function<Real(Real, Int)> LoveModulusA() const override;
+  std::function<Real(Real, Int)> LoveModulusC() const override;
+  std::function<Real(Real, Int)> LoveModulusF() const override;
+  std::function<Real(Real, Int)> LoveModulusL() const override;
+  std::function<Real(Real, Int)> LoveModulusN() const override;
+  std::function<Real(Real, Int)> BulkQualityFactor() const override;
+  std::function<Real(Real, Int)> ShearQualityFactor() const override;
 
 private:
   // Read and process the model file. This method does not

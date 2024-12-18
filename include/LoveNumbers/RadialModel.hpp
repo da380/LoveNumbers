@@ -48,6 +48,7 @@ private:
 
   std::unique_ptr<mfem::GridFunction> _gravitationalPotential;
   std::unique_ptr<mfem::GridFunction> _gravitationalAcceleration;
+  std::unique_ptr<mfem::GridFunction> _densityDerivative;
 
 public:
   // Constructor to be called from derived classes.
@@ -55,6 +56,9 @@ public:
       : Dimensions(dimensions), _order{order},
         _L2{std::make_unique<mfem::L2_FECollection>(order - 1, 1)},
         _H1{std::make_unique<mfem::H1_FECollection>(order, 1)} {}
+
+  // Return the polynomial order.
+  auto Order() const { return _order; }
 
   // Return the number of layers.
   virtual Int NumberOfLayers() const = 0;
@@ -146,35 +150,53 @@ public:
   void WriteAsDeckModel(const std::string &fileName, Real maximumKnotSpacing);
 
   // Material parameter functions for override.
-  virtual std::function<Real(Real, Int)> Rho() const = 0;
-  virtual std::function<Real(Real, Int)> A() const = 0;
-  virtual std::function<Real(Real, Int)> C() const = 0;
-  virtual std::function<Real(Real, Int)> F() const = 0;
-  virtual std::function<Real(Real, Int)> L() const = 0;
-  virtual std::function<Real(Real, Int)> N() const = 0;
-  virtual std::function<Real(Real, Int)> QKappa() const = 0;
-  virtual std::function<Real(Real, Int)> QMu() const = 0;
+  virtual std::function<Real(Real, Int)> Density() const = 0;
+  virtual std::function<Real(Real, Int)> LoveModulusA() const = 0;
+  virtual std::function<Real(Real, Int)> LoveModulusC() const = 0;
+  virtual std::function<Real(Real, Int)> LoveModulusF() const = 0;
+  virtual std::function<Real(Real, Int)> LoveModulusL() const = 0;
+  virtual std::function<Real(Real, Int)> LoveModulusN() const = 0;
+  virtual std::function<Real(Real, Int)> BulkQualityFactor() const = 0;
+  virtual std::function<Real(Real, Int)> ShearQualityFactor() const = 0;
 
   // Derived material parameter functions.
-  std::function<Real(Real, Int)> VPV() const;
-  std::function<Real(Real, Int)> VSV() const;
-  std::function<Real(Real, Int)> VPH() const;
-  std::function<Real(Real, Int)> VSH() const;
-  std::function<Real(Real, Int)> Eta() const;
-  std::function<Real(Real, Int)> Kappa() const;
-  std::function<Real(Real, Int)> Mu() const;
+  std::function<Real(Real, Int)> VerticalPVelocity() const;
+  std::function<Real(Real, Int)> VerticalSVelocity() const;
+  std::function<Real(Real, Int)> HorizontalPVelocity() const;
+  std::function<Real(Real, Int)> HorizontalSVelocity() const;
+  std::function<Real(Real, Int)> AnisotropicEtaParameter() const;
+  std::function<Real(Real, Int)> BulkModulus() const;
+  std::function<Real(Real, Int)> ShearModulus() const;
 
   // MFEM Coefficients for material parameters.
-  auto RhoCoefficient() const { return RadialCoefficient(Rho()); }
-  auto ACoefficient() const { return RadialCoefficient(A()); }
-  auto CCoefficient() const { return RadialCoefficient(C()); }
-  auto FCoefficient() const { return RadialCoefficient(F()); }
-  auto LCoefficient() const { return RadialCoefficient(L()); }
-  auto NCoefficient() const { return RadialCoefficient(N()); }
-  auto QKappaCoefficient() const { return RadialCoefficient(QKappa()); }
-  auto QMuCoefficient() const { return RadialCoefficient(QMu()); }
-  auto KappaCoefficient() const { return RadialCoefficient(Kappa()); }
-  auto MuCoefficient() const { return RadialCoefficient(QMu()); }
+  auto DensityCoefficient() const { return RadialCoefficient(Density()); }
+  auto LoveModulusACoefficient() const {
+    return RadialCoefficient(LoveModulusA());
+  }
+  auto LoveModulusCCoefficient() const {
+    return RadialCoefficient(LoveModulusC());
+  }
+  auto LoveModulusFCoefficient() const {
+    return RadialCoefficient(LoveModulusF());
+  }
+  auto LoveModulusLCoefficient() const {
+    return RadialCoefficient(LoveModulusL());
+  }
+  auto LoveModulusNCoefficient() const {
+    return RadialCoefficient(LoveModulusN());
+  }
+  auto BulkQualityFactorCoefficient() const {
+    return RadialCoefficient(BulkQualityFactor());
+  }
+  auto ShearQualityFactorCoefficient() const {
+    return RadialCoefficient(ShearQualityFactor());
+  }
+  auto BulkModulusCoefficient() const {
+    return RadialCoefficient(BulkModulus());
+  }
+  auto ShearModulusCoefficient() const {
+    return RadialCoefficient(ShearModulus());
+  }
 
   // MFEM Coefficients for computed properties.
   auto GravitationalPotentialCoefficient() const {
@@ -185,14 +207,38 @@ public:
     return mfem::GridFunctionCoefficient(_gravitationalAcceleration.get());
   }
 
+  auto DensitDerivativeCoefficient() const {
+    return mfem::GridFunctionCoefficient(_densityDerivative.get());
+  }
+
   // Write a scalar GridFunction to a file using a simple format for plotting.
-  void WriteGridFunction(const mfem::GridFunction &f, const std::string &file,
-                         Real scale = 1) const;
+  void Write(const mfem::GridFunction &f, const std::string &file,
+             Real scale = 1) const;
+
+  // Write the derivagtive of a scalar Gridfunction to a file  using a simple
+  // format for plotting.
+  void WriteDerivative(const mfem::GridFunction &f, const std::string &file,
+                       Real scale = 1) const;
 
   // Write a RadialCoefficient to a file using a simple format for
   // plotting.
-  void WriteCoefficient(mfem::Coefficient &&f, const std::string &file,
-                        Real scale = 1) const;
+  void Write(mfem::Coefficient &f, const std::string &file,
+             Real scale = 1) const;
+
+  void Write(mfem::Coefficient &&f, const std::string &file,
+             Real scale = 1) const {
+    Write(f, file, scale);
+  }
+
+  // Write the derivagtive of a RadialCoefficient to a file  using a simple
+  // format for plotting.
+  void WriteDerivative(mfem::Coefficient &f, const std::string &file,
+                       Real scale = 1) const;
+
+  void WriteDerivative(mfem::Coefficient &&f, const std::string &file,
+                       Real scale = 1) const {
+    WriteDerivative(f, file, scale);
+  }
 
 private:
   // Compute the surface gravitational acceleration and moment of inertia
@@ -202,6 +248,8 @@ private:
   // Compute the gravitational potential field through solution of the radial
   // Poisson equation.
   void ComputeGravitationalPotential();
+
+  // Compute radial derivative of the density.
 };
 
 } // namespace LoveNumbers
