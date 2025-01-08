@@ -2,17 +2,8 @@
 
 namespace LoveNumbers {
 
-Int DeckModel::NumberOfLayers() const { return _boundaryRadius.size() - 1; }
-
-std::pair<Real, Real> DeckModel::LayerRadii(Int i) const {
-  return {_boundaryRadius[i], _boundaryRadius[i + 1]};
-}
-
-bool DeckModel::LayerIsSolid(Int i) const { return _layerSolid[i]; }
-
-Int DeckModel::NumberOfKnots() const { return _r.size(); }
-
-void DeckModel::ReadModelFile(const std::string &fileName) {
+DeckModel::DeckModel(const Dimensions &dimensions, const std::string &fileName)
+    : RadialModel(dimensions) {
   // Check the file exists.
   if (!std::filesystem::exists(fileName)) {
     throw std::runtime_error("deck file does not exist");
@@ -96,6 +87,16 @@ void DeckModel::ReadModelFile(const std::string &fileName) {
         Spline(rS, rF, std::next(_shearQualityFactor.begin(), i0)));
   }
 }
+
+Int DeckModel::NumberOfLayers() const { return _boundaryRadius.size() - 1; }
+
+std::pair<Real, Real> DeckModel::LayerRadii(Int i) const {
+  return {_boundaryRadius[i], _boundaryRadius[i + 1]};
+}
+
+bool DeckModel::LayerIsSolid(Int i) const { return _layerSolid[i]; }
+
+Int DeckModel::NumberOfKnots() const { return _r.size(); }
 
 std::function<Real(Real, Int)> DeckModel::Density() const {
   return [this](Real r, Int attribute) { return _densities[attribute - 1](r); };

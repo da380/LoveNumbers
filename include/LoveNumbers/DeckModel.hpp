@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Configure.hpp"
+#include "Dimensions.hpp"
 #include "LoveNumbers/Configure.hpp"
 #include "LoveNumbers/RadialModel.hpp"
 #include "RadialModel.hpp"
@@ -56,14 +57,14 @@ private:
   std::vector<Spline> _shearQualityFactors;
 
 public:
-  DeckModel() = delete;
+  DeckModel(const Dimensions &dimensions, const std::string &fileName);
 
-  DeckModel(const Dimensions &dimensions, Int order,
-            Real characteristicLengthScale, const std::string &fileName)
-      : RadialModel(dimensions, order) {
-    ReadModelFile(fileName);
-    BuildMesh(characteristicLengthScale);
-  }
+  /*
+DeckModel(const Dimensions &dimensions, const std::string &fileName)
+    : RadialModel(dimensions) {
+  ReadModelFile(fileName);
+}
+*/
 
   // Return the number of layers. Override of pure virtual function in
   // base class.
@@ -89,11 +90,6 @@ public:
   std::function<Real(Real, Int)> LoveModulusN() const override;
   std::function<Real(Real, Int)> BulkQualityFactor() const override;
   std::function<Real(Real, Int)> ShearQualityFactor() const override;
-
-private:
-  // Read and process the model file. This method does not
-  // set up the finite element mesh.
-  void ReadModelFile(const std::string &fileName);
 };
 
 } // namespace LoveNumbers

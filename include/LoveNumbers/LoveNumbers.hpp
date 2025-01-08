@@ -6,4 +6,5 @@
 #include "LoveNumbers/DeckModel.hpp"
 #include "LoveNumbers/LinearForms.hpp"
 #include "LoveNumbers/RadialModel.hpp"
+#include "LoveNumbers/RadialModelMesh.hpp"
 #include "mfem.hpp"

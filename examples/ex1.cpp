@@ -20,14 +20,16 @@ int main(int argc, char *argv[]) {
 
   auto dimensions = Dimensions();
   Int order = 3;
-  Real characteristicLengthScale = 0.01;
-  auto model = DeckModel(Dimensions(), order, characteristicLengthScale,
-                         "../data/prem.200.no");
+  Real characteristicLengthScale = 0.5;
 
-  auto x = GridFunction(&model.H1Space());
-  auto phi = model.GravitationalPotentialCoefficient();
+  auto model = DeckModel(Dimensions(), "../data/prem.200.no");
+
+  auto modelMesh = RadialModelMesh(model, order, characteristicLengthScale);
+
+  auto x = GridFunction(&modelMesh.H1Space());
+  auto phi = modelMesh.GravitationalPotentialCoefficient();
   x.ProjectCoefficient(phi);
 
-  model.WriteDerivative(model.GravitationalPotentialCoefficient(), "ex1.out",
-                        model.PotentialScale());
+  modelMesh.WriteDerivative(modelMesh.GravitationalPotentialCoefficient(),
+                            "ex1.out", model.PotentialScale());
 }
