@@ -27,10 +27,6 @@ if (NOT CMAKE_CXX_COMPILER AND MFEM_CXX_COMPILER)
   set(CMAKE_CXX_COMPILER "${MFEM_CXX_COMPILER}")      
 endif()
 
-# Locate MPI. This needs to be the same as used to compile MFEM. 
-# If in a non-standard location, or if multiple versions are available, 
-# then set DMPI_C_COMPILER and DMPI_CXX_COMPILER to the executables used. 
-find_package(MPI REQUIRED)
 
 
 # add in Interpolation library. 
@@ -45,10 +41,10 @@ FetchContent_MakeAvailable(Interpolation)
 
 
 # Set up the library 
-add_library(${PROJECT_NAME} SHARED)
+add_library(${PROJECT_NAME})
 
 # Add in linked libraries (note necessary syntax for header-only libraries).
-target_link_libraries(${PROJECT_NAME} PUBLIC mfem MPI::MPI_CXX $<BUILD_INTERFACE:Interpolation>)
+target_link_libraries(${PROJECT_NAME} PUBLIC mfem $<BUILD_INTERFACE:Interpolation>)
 
 
 # Set the source files for the library. 

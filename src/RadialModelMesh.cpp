@@ -110,7 +110,6 @@ mfem::Array<Int> RadialModelMesh::CentreAndSurfaceMarker() const {
 }
 
 void RadialModelMesh::BuildMesh(Real characteristicLengthScale) {
-
   // Clear the mesh in case already set up.
   _mesh.Clear();
 
@@ -135,7 +134,6 @@ void RadialModelMesh::BuildMesh(Real characteristicLengthScale) {
   auto layerAttribute = 1;
   auto boundaryAttribute = 1;
   for (auto i : GetRadialModel().LayerIndices()) {
-
     // Get number of vertices and spacing.
     auto [r1, r2] = GetRadialModel().LayerRadii(i);
     numberOfVertices = elementsInLayer[i] + 1;
@@ -210,7 +208,6 @@ void RadialModelMesh::ComputeSurfaceGravityAndMomentOfInertiaFactor() {
 }
 
 void RadialModelMesh::ComputeGravitationalPotential() {
-
   using namespace mfem;
 
   // Set up the linear form.
@@ -230,6 +227,7 @@ void RadialModelMesh::ComputeGravitationalPotential() {
       RadialCoefficient([](auto r, auto attribute) { return r * r; });
   a.AddDomainIntegrator(new DiffusionIntegrator(radiusSquared));
   auto DtN = ConstantCoefficient(GetRadialModel().SurfaceRadius());
+  // auto radius = RadialCoefficient([](auto r, auto attribute) { return r; });
   auto surfaceMarker = SurfaceMarker();
   a.AddBoundaryIntegrator(new BoundaryMassIntegrator(DtN), surfaceMarker);
   a.Assemble();
@@ -267,7 +265,6 @@ void RadialModelMesh::PrintMesh(const std::string &mesh_file) {
 
 void RadialModelMesh::Write(const mfem::GridFunction &f,
                             const std::string &file, Real scale) const {
-
   using namespace mfem;
   auto fout = std::ofstream(file);
   auto point = Vector(1);
@@ -297,7 +294,6 @@ void RadialModelMesh::Write(const mfem::GridFunction &f,
 void RadialModelMesh::WriteDerivative(const mfem::GridFunction &f,
                                       const std::string &file,
                                       Real scale) const {
-
   using namespace mfem;
   auto fout = std::ofstream(file);
   auto point = Vector(1);
@@ -326,7 +322,6 @@ void RadialModelMesh::WriteDerivative(const mfem::GridFunction &f,
 
 void RadialModelMesh::Write(mfem::Coefficient &f, const std::string &file,
                             Real scale) const {
-
   // Loop over the mesh storing values.
   auto fout = std::ofstream(file);
   auto &fes = H1Space();
@@ -388,4 +383,4 @@ void RadialModelMesh::WriteDerivative(mfem::Coefficient &f,
   }
 }
 
-} // namespace LoveNumbers
+}  // namespace LoveNumbers
